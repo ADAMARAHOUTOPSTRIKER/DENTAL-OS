@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import type { Patient, TreatmentPlan } from "./data";
+import type { Patient, TreatmentPlan, Payment } from "./data";
 
 const TEAL: [number, number, number] = [46, 196, 182];
 const INK: [number, number, number] = [8, 34, 46];
@@ -172,6 +172,134 @@ export function generateDevisPDF(
   });
 
   const filename = `Devis-${(patient?.name ?? plan.patient).replace(/\s+/g, "-")}.pdf`;
+  const blob = doc.output("blob");
+  const dataUrl = doc.output("datauristring");
+  return { filename, dataUrl, blob };
+}
+
+const METHOD_FR: Record<Payment["method"], string> = {
+  cash: "Espèces",
+  card: "Carte bancaire",
+  cheque: "Chèque",
+  transfer: "Virement",
+};
+
+/**
+ * Render a clean payment RECEIPT (reçu) as a PDF — mirrors the devis styling.
+ * Not a fiscal invoice; a proof-of-payment the patient can download/keep.
+ */
+export function generateReceiptPDF(
+  payment: Payment,
+  patient: Patient | undefined,
+  opts?: { clinic?: string; balanceAfter?: number }
+): DevisResult {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = doc.internal.pageSize.getWidth();
+  const clinic = opts?.clinic ?? "Cabinet Dentaire DentalOS";
+  const ref = `RECU-${payment.id.toUpperCase()}`;
+
+  // ---- Header band ----
+  doc.setFillColor(...INK);
+  doc.rect(0, 0, W, 34, "F");
+  doc.setFillColor(...TEAL);
+  doc.rect(0, 34, W, 1.6, "F");
+  doc.setFillColor(...TEAL);
+  doc.roundedRect(14, 10, 14, 14, 3, 3, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("D", 21, 19.6, { align: "center" });
+  doc.setFontSize(15);
+  doc.text(clinic, 32, 16);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(190, 205, 210);
+  doc.text("Casablanca, Maroc  ·  +212 5 22 00 00 00  ·  contact@dentalos.ma", 32, 22);
+
+  // ---- Title ----
+  doc.setTextColor(...INK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(22);
+  doc.text("REÇU DE PAIEMENT", 14, 50);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(...MUTE);
+  doc.text(`Référence : ${ref}`, W - 14, 44, { align: "right" });
+  doc.text(`Date : ${payment.date}`, W - 14, 49.5, { align: "right" });
+
+  // ---- Patient box ----
+  const boxY = 60;
+  doc.setDrawColor(230, 234, 236);
+  doc.setFillColor(250, 251, 251);
+  doc.roundedRect(14, boxY, W - 28, 22, 2.5, 2.5, "FD");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTE);
+  doc.text("REÇU DE", 19, boxY + 7);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...INK);
+  doc.text(patient?.name ?? payment.patient, 19, boxY + 14);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTE);
+  const meta = [patient?.phone, patient?.city].filter(Boolean).join("   ·   ");
+  if (meta) doc.text(meta, 19, boxY + 19);
+
+  // ---- Amount hero ----
+  let y = boxY + 40;
+  doc.setFillColor(...INK);
+  doc.roundedRect(14, y - 10, W - 28, 30, 3, 3, "F");
+  doc.setTextColor(190, 205, 210);
+  doc.setFontSize(9);
+  doc.text("MONTANT REÇU", 22, y - 1);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(26);
+  doc.text(`${fmtMad(payment.amount)} MAD`, 22, y + 12);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(190, 205, 210);
+  doc.text(METHOD_FR[payment.method], W - 22, y - 1, { align: "right" });
+  if (payment.act) doc.text(payment.act, W - 22, y + 11, { align: "right", maxWidth: 80 });
+
+  // ---- Balance line ----
+  y += 34;
+  if (typeof opts?.balanceAfter === "number") {
+    doc.setDrawColor(230, 234, 236);
+    doc.setFillColor(250, 251, 251);
+    doc.roundedRect(14, y - 6, W - 28, 12, 2, 2, "FD");
+    doc.setTextColor(...MUTE);
+    doc.setFontSize(9.5);
+    doc.text("Solde restant après ce paiement", 19, y + 1.5);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...(opts.balanceAfter > 0 ? MUTE : TEAL));
+    doc.text(`${fmtMad(opts.balanceAfter)} MAD`, W - 19, y + 1.5, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    y += 16;
+  }
+
+  // ---- Note ----
+  y += 6;
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTE);
+  doc.text(
+    "Ce reçu atteste d'un paiement encaissé par le cabinet. Il ne constitue pas une facture fiscale.",
+    14,
+    y,
+    { maxWidth: W - 28 }
+  );
+
+  // ---- Footer ----
+  const fy = doc.internal.pageSize.getHeight() - 12;
+  doc.setDrawColor(235, 238, 239);
+  doc.line(14, fy - 4, W - 14, fy - 4);
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTE);
+  doc.text("DentalOS — Le système d'exploitation de votre cabinet dentaire", W / 2, fy, {
+    align: "center",
+  });
+
+  const filename = `Recu-${(patient?.name ?? payment.patient).replace(/\s+/g, "-")}-${payment.id}.pdf`;
   const blob = doc.output("blob");
   const dataUrl = doc.output("datauristring");
   return { filename, dataUrl, blob };

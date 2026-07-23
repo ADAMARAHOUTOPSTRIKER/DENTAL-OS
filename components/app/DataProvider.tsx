@@ -55,6 +55,7 @@ export interface NewPatientInput {
   city?: string;
   tags?: string[];
   alerts?: string[];
+  intakeStatus?: "draft" | null; // online pre-registration awaiting clinic validation
 }
 
 interface DataStore extends ClinicData {
@@ -78,6 +79,13 @@ interface DataStore extends ClinicData {
     status?: Appointment["status"];
   }) => Promise<Appointment>;
   markApptReminder: (apptId: string) => Promise<void>;
+  confirmAppointmentByPatient: (apptId: string) => Promise<void>;
+  rescheduleAppointment: (
+    apptId: string,
+    next: { day: string; time: string }
+  ) => Promise<void>;
+
+  setPatientLanguage: (patientId: string, lang: "fr" | "ar") => Promise<void>;
 
   addTreatmentPlan: (input: {
     patientId: string;
@@ -178,10 +186,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       alerts: input.alerts ?? [],
       family: [],
       tags: input.tags ?? [],
+      languagePreference: null,
+      intakeStatus: input.intakeStatus ?? null,
     };
     setData((d) => ({ ...d, patients: [...d.patients, p] }));
-    persist(() =>
-      supabase!.from("patients").insert({
+    persist(async () => {
+      // Core columns only, so the insert always succeeds even before optional
+      // columns (intake_status) are migrated in.
+      await supabase!.from("patients").insert({
         id: p.id,
         name: p.name,
         age: p.age,
@@ -195,8 +207,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         alerts: p.alerts,
         family: p.family,
         tags: p.tags,
-      })
-    );
+      });
+      if (p.intakeStatus) {
+        // Best-effort: no-op if the column isn't there yet.
+        try {
+          await supabase!.from("patients").update({ intake_status: p.intakeStatus }).eq("id", p.id);
+        } catch {
+          /* column not migrated yet */
+        }
+      }
+    });
     return p;
   }, []);
 
@@ -297,6 +317,81 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }));
     persist(() =>
       supabase!.from("appointments").update({ reminder_sent: true }).eq("id", apptId)
+    );
+  }, []);
+
+  // Patient taps "Je confirme ma présence" — never sets status='confirmed'
+  // (that stays the secretary's decision); records a patient-side confirmation.
+  const confirmAppointmentByPatient = useCallback(async (apptId: string) => {
+    setData((d) => ({
+      ...d,
+      appointments: d.appointments.map((a) =>
+        a.id === apptId ? { ...a, patientConfirmed: true } : a
+      ),
+    }));
+    persist(() =>
+      supabase!.from("appointments").update({ patient_confirmed: true }).eq("id", apptId)
+    );
+  }, []);
+
+  // Patient reschedules: move the RDV to a new day/time, drop back to pending
+  // for the clinic to re-validate, and clear reminder + patient confirmation.
+  const rescheduleAppointment = useCallback(
+    async (apptId: string, next: { day: string; time: string }) => {
+      let movedPatientId: string | undefined;
+      setData((d) => ({
+        ...d,
+        appointments: d.appointments
+          .map((a) => {
+            if (a.id !== apptId) return a;
+            movedPatientId = a.patientId;
+            return {
+              ...a,
+              day: next.day,
+              time: next.time,
+              status: "pending" as const,
+              reminderSent: false,
+              patientConfirmed: false,
+            };
+          })
+          .sort((x, y) => x.day.localeCompare(y.day) || x.time.localeCompare(y.time)),
+        patients: d.patients.map((p) =>
+          p.id === movedPatientId ? { ...p, nextVisit: isoToLabel(next.day) } : p
+        ),
+      }));
+      persist(async () => {
+        // Core columns always persist; patient_confirmed is best-effort until migrated.
+        await supabase!
+          .from("appointments")
+          .update({
+            day: next.day,
+            time: next.time,
+            status: "pending",
+            reminder_sent: false,
+          })
+          .eq("id", apptId);
+        try {
+          await supabase!
+            .from("appointments")
+            .update({ patient_confirmed: false })
+            .eq("id", apptId);
+        } catch {
+          /* column not migrated yet */
+        }
+      });
+    },
+    []
+  );
+
+  const setPatientLanguage = useCallback(async (patientId: string, lang: "fr" | "ar") => {
+    setData((d) => ({
+      ...d,
+      patients: d.patients.map((p) =>
+        p.id === patientId ? { ...p, languagePreference: lang } : p
+      ),
+    }));
+    persist(() =>
+      supabase!.from("patients").update({ language_preference: lang }).eq("id", patientId)
     );
   }, []);
 
@@ -533,6 +628,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       deletePatient,
       addAppointment,
       markApptReminder,
+      confirmAppointmentByPatient,
+      rescheduleAppointment,
+      setPatientLanguage,
       addTreatmentPlan,
       setPlanStatus,
       recordPayment,
@@ -551,6 +649,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       deletePatient,
       addAppointment,
       markApptReminder,
+      confirmAppointmentByPatient,
+      rescheduleAppointment,
+      setPatientLanguage,
       addTreatmentPlan,
       setPlanStatus,
       recordPayment,

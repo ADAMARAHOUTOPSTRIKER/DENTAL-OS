@@ -266,6 +266,42 @@ export const DICT: Dict = {
   "portal.pay": { fr: "Vos paiements", ar: "مدفوعاتك" },
   "portal.confirm": { fr: "Confirmer ma présence", ar: "تأكيد الحضور" },
   "portal.reschedule": { fr: "Reprogrammer", ar: "إعادة جدولة" },
+  "portal.confirmed": { fr: "Présence confirmée", ar: "تم تأكيد الحضور" },
+  "portal.noappt": { fr: "Aucun rendez-vous à venir", ar: "لا موعد قادم" },
+  "portal.noappt.sub": { fr: "Contactez le cabinet pour prendre rendez-vous.", ar: "تواصل مع العيادة لتحديد موعد." },
+  "portal.awaiting": { fr: "En attente de confirmation du cabinet", ar: "في انتظار تأكيد العيادة" },
+  // Échéancier / paiements patient
+  "portal.remaining": { fr: "Reste à payer", ar: "المتبقّي للدفع" },
+  "portal.paid": { fr: "Déjà réglé", ar: "المدفوع" },
+  "portal.total": { fr: "Total du plan", ar: "مجموع الخطة" },
+  "portal.uptodate": { fr: "À jour — rien à régler", ar: "محدَّث — لا شيء للدفع" },
+  "portal.receipt": { fr: "Reçu", ar: "إيصال" },
+  "portal.receipt.done": { fr: "Reçu téléchargé", ar: "تم تحميل الإيصال" },
+  // Coffre
+  "portal.vault": { fr: "Mon coffre médical", ar: "خزنتي الطبية" },
+  "portal.vault.empty": { fr: "Aucun document pour le moment.", ar: "لا وثائق حاليًا." },
+  // Reschedule modal
+  "resched.title": { fr: "Reprogrammer mon rendez-vous", ar: "إعادة جدولة موعدي" },
+  "resched.current": { fr: "Rendez-vous actuel", ar: "الموعد الحالي" },
+  "resched.newday": { fr: "Nouveau jour", ar: "اليوم الجديد" },
+  "resched.newtime": { fr: "Nouvelle heure", ar: "الساعة الجديدة" },
+  "resched.confirm": { fr: "Demander ce créneau", ar: "طلب هذا الموعد" },
+  "resched.done": { fr: "Demande envoyée — le cabinet confirmera", ar: "تم إرسال الطلب — ستؤكّد العيادة" },
+  "resched.note": { fr: "Le cabinet validera votre nouveau créneau.", ar: "ستؤكّد العيادة موعدكم الجديد." },
+  // Langue de contact
+  "portal.language": { fr: "Langue de contact", ar: "لغة التواصل" },
+  "portal.language.hint": { fr: "Vos rappels WhatsApp seront envoyés dans cette langue.", ar: "ستُرسَل تذكيرات واتساب بهذه اللغة." },
+  "portal.language.saved": { fr: "Langue enregistrée", ar: "تم حفظ اللغة" },
+  // Pré-inscription
+  "portal.prereg": { fr: "Pré-inscription en ligne", ar: "التسجيل المسبق" },
+  "portal.prereg.sub": { fr: "Nouveau patient ? Créez votre dossier avant votre première visite.", ar: "مريض جديد؟ أنشئ ملفك قبل زيارتك الأولى." },
+  "portal.prereg.cta": { fr: "Pré-inscrire un patient", ar: "تسجيل مريض مسبقًا" },
+  "prereg.title": { fr: "Pré-inscription", ar: "التسجيل المسبق" },
+  "prereg.sub": { fr: "Le cabinet validera votre dossier avant le rendez-vous.", ar: "ستتحقق العيادة من ملفكم قبل الموعد." },
+  "prereg.done": { fr: "Dossier envoyé — le cabinet vous confirmera", ar: "تم إرسال الملف — ستؤكّد العيادة" },
+  "prereg.submit": { fr: "Envoyer ma pré-inscription", ar: "إرسال تسجيلي المسبق" },
+  "prereg.badge": { fr: "Pré-inscrit", ar: "مسجّل مسبقًا" },
+  "field.reason": { fr: "Motif / antécédents", ar: "السبب / السوابق" },
 
   "common.mad": { fr: "MAD", ar: "درهم" },
   "common.close": { fr: "Fermer", ar: "إغلاق" },
@@ -404,6 +440,7 @@ interface Store {
   toggleLang: () => void;
   setRole: (r: Role) => void;
   t: (key: string) => string;
+  tIn: (l: Lang, key: string) => string; // translate in a specific language (e.g. patient's preference)
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -461,6 +498,12 @@ export function AppProvider({
     [lang]
   );
 
+  const tIn = useCallback((l: Lang, key: string) => {
+    const entry = DICT[key];
+    if (!entry) return key;
+    return entry[l] ?? entry.fr;
+  }, []);
+
   const value = useMemo<Store>(
     () => ({
       lang,
@@ -470,8 +513,9 @@ export function AppProvider({
       toggleLang,
       setRole,
       t,
+      tIn,
     }),
-    [lang, role, setLang, toggleLang, setRole, t]
+    [lang, role, setLang, toggleLang, setRole, t, tIn]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

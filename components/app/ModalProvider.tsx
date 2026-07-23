@@ -33,6 +33,7 @@ import {
   PRACTITIONERS,
   TODAY_ISO,
   type Patient,
+  type Appointment,
   type PlanLine,
   type TreatmentPlan,
   type DocCategory,
@@ -47,6 +48,8 @@ type Tone = "success" | "info";
 interface UICtx {
   toast: (text: string, tone?: Tone) => void;
   openNewPatient: () => void;
+  openPreRegister: () => void;
+  openReschedule: (appointment: Appointment) => void;
   openNewAppointment: (patientId?: string) => void;
   openNewPlan: (patientId?: string) => void;
   openNewDocument: (prefill?: { patientId?: string; docId?: string }) => void;
@@ -67,7 +70,8 @@ export function useUI() {
 }
 
 type Modal =
-  | { kind: "patient" }
+  | { kind: "patient"; intake?: boolean }
+  | { kind: "reschedule"; appointment: Appointment }
   | { kind: "appointment"; patientId?: string }
   | { kind: "plan"; patientId?: string }
   | { kind: "document"; patientId?: string; docId?: string }
@@ -131,6 +135,8 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
     () => ({
       toast,
       openNewPatient: () => setModal({ kind: "patient" }),
+      openPreRegister: () => setModal({ kind: "patient", intake: true }),
+      openReschedule: (appointment) => setModal({ kind: "reschedule", appointment }),
       openNewAppointment: (patientId) => setModal({ kind: "appointment", patientId }),
       openNewPlan: (patientId) => setModal({ kind: "plan", patientId }),
       openNewDocument: (prefill) => setModal({ kind: "document", ...prefill }),
@@ -155,7 +161,12 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider value={api}>
       {children}
 
-      {modal?.kind === "patient" && <PatientModal onClose={close} toast={toast} />}
+      {modal?.kind === "patient" && (
+        <PatientModal onClose={close} toast={toast} intake={modal.intake} />
+      )}
+      {modal?.kind === "reschedule" && (
+        <RescheduleModal onClose={close} toast={toast} appointment={modal.appointment} />
+      )}
       {modal?.kind === "appointment" && (
         <AppointmentModal onClose={close} toast={toast} prefill={modal.patientId} />
       )}
@@ -325,7 +336,7 @@ async function resolveTarget(
 /* New patient                                                         */
 /* ------------------------------------------------------------------ */
 
-function PatientModal({ onClose, toast }: Common) {
+function PatientModal({ onClose, toast, intake = false }: Common & { intake?: boolean }) {
   const { t } = useApp();
   const { addPatient } = useData();
   const [name, setName] = useState("");
@@ -348,22 +359,23 @@ function PatientModal({ onClose, toast }: Common) {
       city,
       tags: parseList(tags),
       alerts: parseList(alerts),
+      intakeStatus: intake ? "draft" : null,
     });
-    toast(`${name} — ${t("new.patient").toLowerCase()} ✓`);
+    toast(intake ? t("prereg.done") : `${name} — ${t("new.patient").toLowerCase()} ✓`);
     onClose();
   };
 
   return (
     <Modal
-      title={t("new.patient")}
-      subtitle={t("role.dentist.desc")}
+      title={intake ? t("prereg.title") : t("new.patient")}
+      subtitle={intake ? t("prereg.sub") : t("role.dentist.desc")}
       icon={<UserPlus className="h-5 w-5" />}
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="primary" onClick={submit} disabled={!name.trim() || busy}>
-            <Check className="h-4 w-4" /> {t("common.create")}
+            <Check className="h-4 w-4" /> {intake ? t("prereg.submit") : t("common.create")}
           </Button>
         </>
       }
@@ -882,8 +894,14 @@ function MessageModal({
   recallReason?: string;
   onSent?: () => void;
 }) {
-  const { t } = useApp();
+  const { t, tIn, lang } = useApp();
   const { appointments } = useData();
+
+  // Compose the message in the PATIENT's preferred language (falls back to the
+  // language the staff member is currently using) — an Arabic-speaking patient
+  // gets Arabic even if the secretary works in French.
+  const msgLang = patient.languagePreference ?? lang;
+  const tp = (key: string) => tIn(msgLang, key);
 
   // Find this patient's soonest upcoming appointment (today or later) for context.
   const nextAppt = useMemo(() => {
@@ -893,15 +911,15 @@ function MessageModal({
   }, [appointments, patient.id]);
 
   const firstName = patient.name.split(" ")[0] || patient.name;
-  const clinic = t("msg.clinic");
+  const clinic = tp("msg.clinic");
 
   const initial = useMemo(() => {
     if (recallReason) {
-      return fillTemplate(t("msg.tmpl.recall"), { name: firstName, reason: recallReason, clinic });
+      return fillTemplate(tp("msg.tmpl.recall"), { name: firstName, reason: recallReason, clinic });
     }
     if (reminder) {
       if (nextAppt) {
-        return fillTemplate(t("msg.tmpl.reminder"), {
+        return fillTemplate(tp("msg.tmpl.reminder"), {
           name: firstName,
           date: isoToShort(nextAppt.day),
           time: nextAppt.time,
@@ -909,11 +927,11 @@ function MessageModal({
           clinic,
         });
       }
-      return fillTemplate(t("msg.tmpl.reminder.noappt"), { name: firstName, clinic });
+      return fillTemplate(tp("msg.tmpl.reminder.noappt"), { name: firstName, clinic });
     }
-    return fillTemplate(t("msg.tmpl.blank"), { name: firstName });
+    return fillTemplate(tp("msg.tmpl.blank"), { name: firstName });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reminder, recallReason, nextAppt, firstName]);
+  }, [reminder, recallReason, nextAppt, firstName, msgLang]);
 
   const [text, setText] = useState(initial);
   const [busy, setBusy] = useState(false);
@@ -955,6 +973,69 @@ function MessageModal({
         <span className="grid h-4 w-4 place-items-center rounded bg-[#25D366] text-[9px] font-bold text-white">W</span>
         {t("msg.whatsapphint")}
       </p>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Reschedule (patient-facing)                                         */
+/* ------------------------------------------------------------------ */
+
+function RescheduleModal({
+  onClose,
+  toast,
+  appointment,
+}: Common & { appointment: Appointment }) {
+  const { t } = useApp();
+  const { rescheduleAppointment } = useData();
+  const [day, setDay] = useState(appointment.day);
+  const [time, setTime] = useState(appointment.time);
+  const [busy, setBusy] = useState(false);
+
+  const unchanged = day === appointment.day && time === appointment.time;
+
+  const submit = async () => {
+    if (busy || unchanged || !day) return;
+    setBusy(true);
+    await rescheduleAppointment(appointment.id, { day, time });
+    toast(t("resched.done"));
+    onClose();
+  };
+
+  return (
+    <Modal
+      title={t("resched.title")}
+      icon={<CalendarPlus className="h-5 w-5" />}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" onClick={submit} disabled={busy || unchanged || !day}>
+            <Check className="h-4 w-4" /> {t("resched.confirm")}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-xl border border-black/5 bg-sand-50 p-3">
+          <div className="text-xs font-medium uppercase tracking-wide text-ink-800/45">
+            {t("resched.current")}
+          </div>
+          <div className="mt-1 text-sm font-semibold text-ink-900">
+            {isoToLabel(appointment.day)} · {appointment.time} — {appointment.act}
+          </div>
+          <div className="text-xs text-ink-800/50">{appointment.practitioner}</div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t("resched.newday")} required hint={isoToLabel(day)}>
+            <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+          </Field>
+          <Field label={t("resched.newtime")} required>
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </Field>
+        </div>
+        <p className="text-xs text-ink-800/45">{t("resched.note")}</p>
+      </div>
     </Modal>
   );
 }

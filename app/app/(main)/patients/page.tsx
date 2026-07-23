@@ -173,7 +173,14 @@ export default function PatientsPage() {
                 <span className="flex items-center gap-3">
                   <Avatar name={p.name} size={40} />
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-ink-900">{p.name}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="truncate text-sm font-semibold text-ink-900">{p.name}</span>
+                      {p.intakeStatus === "draft" && (
+                        <span className="shrink-0 rounded-full bg-sky-50 px-2 py-0.5 text-[10px] font-semibold text-sky-700 ring-1 ring-sky-200">
+                          {t("prereg.badge")}
+                        </span>
+                      )}
+                    </span>
                     <span className="block truncate text-xs text-ink-800/50">{p.age} {t("detail.age")} · {p.city}</span>
                   </span>
                 </span>

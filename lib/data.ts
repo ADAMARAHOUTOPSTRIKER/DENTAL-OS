@@ -24,6 +24,8 @@ export interface Patient {
   alerts: string[];
   family: string[]; // patient ids
   tags: string[];
+  languagePreference?: "fr" | "ar" | null; // patient's preferred contact language
+  intakeStatus?: "draft" | null; // 'draft' = pre-registered online, awaiting clinic validation
 }
 
 export interface Appointment {
@@ -37,6 +39,7 @@ export interface Appointment {
   status: ApptStatus;
   reminderSent: boolean;
   practitioner: string;
+  patientConfirmed?: boolean; // patient tapped "Je confirme ma présence" in the portal
 }
 
 export interface PlanLine {

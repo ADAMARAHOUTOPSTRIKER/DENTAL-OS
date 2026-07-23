@@ -65,6 +65,8 @@ export async function fetchClinicData(): Promise<ClinicData> {
       alerts: r.alerts ?? [],
       family: r.family ?? [],
       tags: r.tags ?? [],
+      languagePreference: r.language_preference ?? null,
+      intakeStatus: r.intake_status ?? null,
     }));
 
     const appointments: Appointment[] = (aRes.data ?? []).map((r: any) => ({
@@ -78,6 +80,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       status: r.status,
       reminderSent: r.reminder_sent,
       practitioner: r.practitioner,
+      patientConfirmed: r.patient_confirmed ?? false,
     }));
 
     const linesByPlan = new Map<string, { tooth: string; act: string; price: number }[]>();
