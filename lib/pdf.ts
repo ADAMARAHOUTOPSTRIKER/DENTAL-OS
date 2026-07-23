@@ -1,5 +1,6 @@
 import { jsPDF } from "jspdf";
 import type { Patient, TreatmentPlan, Payment, ClinicDocument } from "./data";
+import { indicativeRate, type Regime } from "./care";
 
 const TEAL: [number, number, number] = [46, 196, 182];
 const INK: [number, number, number] = [8, 34, 46];
@@ -505,5 +506,165 @@ export function generateDossierPDF(
   doc.text("Document généré depuis le portail patient — DentalOS", W / 2, fy, { align: "center" });
 
   const filename = `Dossier-${patient.name.replace(/\s+/g, "-")}.pdf`;
+  return { filename, blob: doc.output("blob"), dataUrl: doc.output("datauristring") };
+}
+
+/** Feuille de soins / devis conventionné with indicative AMO reimbursement. */
+export function generateFeuilleSoinsPDF(
+  patient: Patient,
+  plan: TreatmentPlan,
+  regime: Regime
+): DevisResult {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = doc.internal.pageSize.getWidth();
+  header(doc, W, "Cabinet Dentaire DentalOS");
+
+  doc.setTextColor(...INK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(18);
+  doc.text("FEUILLE DE SOINS", 14, 49);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  doc.setTextColor(...MUTE);
+  doc.text(`Régime : ${regime}`, W - 14, 44, { align: "right" });
+  doc.text(`Date : ${plan.createdAt}`, W - 14, 49.5, { align: "right" });
+
+  patientBox(doc, W, 56, patient);
+
+  let y = 90;
+  doc.setFillColor(...INK);
+  doc.roundedRect(14, y - 6, W - 28, 9, 1.5, 1.5, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.text("ACTE", 19, y);
+  doc.text("PRIX", W - 92, y, { align: "right" });
+  doc.text("TAUX", W - 58, y, { align: "right" });
+  doc.text("REMB. EST.", W - 19, y, { align: "right" });
+  y += 10;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9.5);
+  let total = 0;
+  let rembTotal = 0;
+  plan.lines.forEach((l) => {
+    const rate = indicativeRate(l.act, regime);
+    const remb = Math.round(l.price * rate);
+    total += l.price;
+    rembTotal += remb;
+    doc.setTextColor(...INK);
+    doc.text(l.act, 19, y, { maxWidth: W - 118 });
+    doc.text(fmtMad(l.price), W - 92, y, { align: "right" });
+    doc.text(`${Math.round(rate * 100)}%`, W - 58, y, { align: "right" });
+    doc.text(fmtMad(remb), W - 19, y, { align: "right" });
+    y += 8;
+  });
+  const reste = total - rembTotal;
+
+  y += 4;
+  doc.setDrawColor(...TEAL);
+  doc.line(W - 100, y, W - 14, y);
+  y += 7;
+  doc.setFontSize(10);
+  doc.setTextColor(...MUTE);
+  doc.text("Total des soins", W - 100, y);
+  doc.setTextColor(...INK);
+  doc.setFont("helvetica", "bold");
+  doc.text(`${fmtMad(total)} MAD`, W - 14, y, { align: "right" });
+  y += 7;
+  doc.setFont("helvetica", "normal");
+  doc.setTextColor(...MUTE);
+  doc.text("Remboursement estimé", W - 100, y);
+  doc.setTextColor(...TEAL);
+  doc.setFont("helvetica", "bold");
+  doc.text(`- ${fmtMad(rembTotal)} MAD`, W - 14, y, { align: "right" });
+  y += 8;
+  doc.setFontSize(11);
+  doc.setTextColor(...INK);
+  doc.text("Reste à votre charge (estimé)", W - 100, y);
+  doc.text(`${fmtMad(reste)} MAD`, W - 14, y, { align: "right" });
+
+  y += 16;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTE);
+  doc.text(
+    "Estimation indicative et non contractuelle. Les taux de prise en charge réels dépendent de votre organisme (CNOPS, CNSS/AMO, mutuelle ou assurance privée) et de la nomenclature en vigueur.",
+    14, y, { maxWidth: W - 28 }
+  );
+
+  const fy = doc.internal.pageSize.getHeight() - 12;
+  doc.setDrawColor(235, 238, 239);
+  doc.line(14, fy - 4, W - 14, fy - 4);
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTE);
+  doc.text("DentalOS — Le système d'exploitation de votre cabinet dentaire", W / 2, fy, { align: "center" });
+
+  const filename = `Feuille-de-soins-${patient.name.replace(/\s+/g, "-")}.pdf`;
+  return { filename, blob: doc.output("blob"), dataUrl: doc.output("datauristring") };
+}
+
+/** Pre/post-op instruction sheet for a given act, with an alert-based precaution. */
+export function generateInstructionsPDF(
+  patient: Patient,
+  opts: { act: string; before: string[]; after: string[]; precaution: string | null }
+): DevisResult {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = doc.internal.pageSize.getWidth();
+  header(doc, W, "Cabinet Dentaire DentalOS");
+
+  doc.setTextColor(...INK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(17);
+  doc.text("CONSIGNES DE SOINS", 14, 49);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...TEAL);
+  doc.text(opts.act, 14, 56);
+
+  patientBox(doc, W, 62, patient);
+
+  let y = 96;
+  const block = (title: string, items: string[]) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...TEAL);
+    doc.text(title, 14, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...INK);
+    items.forEach((it) => {
+      const lines = doc.splitTextToSize(`•  ${it}`, W - 32) as string[];
+      doc.text(lines, 16, y);
+      y += lines.length * 5 + 1;
+    });
+    y += 5;
+  };
+  block("Avant l'intervention", opts.before);
+  block("Après l'intervention", opts.after);
+
+  if (opts.precaution) {
+    doc.setFillColor(255, 247, 237);
+    doc.setDrawColor(250, 204, 150);
+    doc.roundedRect(14, y - 4, W - 28, 16, 2.5, 2.5, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(180, 100, 20);
+    doc.text("Précaution personnelle", 19, y + 2);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(120, 80, 30);
+    doc.text(doc.splitTextToSize(opts.precaution, W - 40) as string[], 19, y + 7);
+    y += 20;
+  }
+
+  const fy = doc.internal.pageSize.getHeight() - 12;
+  doc.setDrawColor(235, 238, 239);
+  doc.line(14, fy - 4, W - 14, fy - 4);
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTE);
+  doc.text("En cas d'urgence, contactez votre cabinet — DentalOS", W / 2, fy, { align: "center" });
+
+  const filename = `Consignes-${opts.act.replace(/\s+/g, "-")}.pdf`;
   return { filename, blob: doc.output("blob"), dataUrl: doc.output("datauristring") };
 }

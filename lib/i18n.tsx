@@ -399,6 +399,40 @@ export const DICT: Dict = {
   "portal.renew": { fr: "Demander un renouvellement", ar: "طلب تجديد" },
   "portal.renew.tmpl": { fr: "Bonjour, je suis {name}. Je souhaite renouveler mon ordonnance : {doc}.", ar: "مرحبًا، أنا {name}. أودّ تجديد وصفتي الطبية: {doc}." },
 
+  // ===== Portal backlog (MRE, post-op, AMO, consignes) =====
+  // MRE / séjour
+  "portal.mre": { fr: "Séjour / MRE", ar: "إقامة / مغاربة العالم" },
+  "portal.mre.sub": { fr: "Regroupez vos soins pendant votre séjour au Maroc.", ar: "اجمع علاجاتك خلال إقامتك في المغرب." },
+  "portal.mre.from": { fr: "Arrivée", ar: "الوصول" },
+  "portal.mre.to": { fr: "Départ", ar: "المغادرة" },
+  "portal.mre.plan": { fr: "À planifier pendant le séjour", ar: "للتخطيط خلال الإقامة" },
+  "portal.mre.empty": { fr: "Rien à planifier — vous êtes à jour.", ar: "لا شيء للتخطيط — أنت محدَّث." },
+  "portal.mre.book": { fr: "Placer sur le séjour", ar: "حجز خلال الإقامة" },
+
+  // Suivi post-op
+  "portal.postop": { fr: "Suivi post-opératoire", ar: "المتابعة بعد العملية" },
+  "portal.postop.body": { fr: "Un léger inconfort et un œdème sont normaux les premiers jours. Suivez les consignes remises, reposez-vous et privilégiez une alimentation tiède et molle.", ar: "انزعاج خفيف وتورّم أمر طبيعي في الأيام الأولى. اتبع التعليمات، واسترح، وتناول طعامًا فاترًا ولينًا." },
+  "portal.postop.escalate": { fr: "Signaler un problème", ar: "الإبلاغ عن مشكلة" },
+  "portal.postop.tmpl": { fr: "Bonjour, je suis {name}. Suite à mon intervention, je ressens : ", ar: "مرحبًا، أنا {name}. بعد عمليتي، أشعر بـ: " },
+
+  // Feuille de soins / AMO
+  "portal.amo": { fr: "Feuille de soins / AMO", ar: "ورقة العلاجات / التأمين" },
+  "portal.amo.sub": { fr: "Estimez votre prise en charge et générez votre feuille de soins.", ar: "قدّر التغطية وأنشئ ورقة علاجاتك." },
+  "portal.amo.regime": { fr: "Votre régime", ar: "نظامك" },
+  "portal.amo.remb": { fr: "Remb. estimé", ar: "تعويض تقديري" },
+  "portal.amo.reste": { fr: "Reste à charge (est.)", ar: "المتبقّي (تقديري)" },
+  "portal.amo.generate": { fr: "Générer la feuille de soins", ar: "إنشاء ورقة العلاجات" },
+  "portal.amo.done": { fr: "Feuille de soins générée", ar: "تم إنشاء ورقة العلاجات" },
+  "portal.amo.noplan": { fr: "Disponible après acceptation d'un devis.", ar: "متاح بعد قبول فاتورة." },
+  "portal.amo.disclaimer": { fr: "Estimation indicative, non contractuelle.", ar: "تقدير إرشادي غير تعاقدي." },
+
+  // Consignes pré/post-op
+  "portal.instructions": { fr: "Consignes de soins", ar: "تعليمات العلاج" },
+  "portal.instructions.sub": { fr: "Fiches pré-op / post-op pour vos actes.", ar: "بطاقات ما قبل/بعد العلاج لإجراءاتك." },
+  "portal.instructions.get": { fr: "Consignes (PDF)", ar: "التعليمات (PDF)" },
+  "portal.instructions.done": { fr: "Consignes téléchargées", ar: "تم تحميل التعليمات" },
+  "portal.instructions.empty": { fr: "Aucun acte à préparer.", ar: "لا إجراء للتحضير." },
+
   "common.mad": { fr: "MAD", ar: "درهم" },
   "common.close": { fr: "Fermer", ar: "إغلاق" },
   "common.save": { fr: "Enregistrer", ar: "حفظ" },

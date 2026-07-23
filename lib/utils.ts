@@ -45,6 +45,13 @@ export function isoToShort(iso: string) {
   return `${d} ${MON[m - 1]}`;
 }
 
+// Add N days to an ISO date (UTC-based, no timezone drift).
+export function addDaysIso(iso: string, n: number) {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 // ---------- WhatsApp ----------
 // Normalize a Moroccan phone to international digits for wa.me.
 // "+212 661 20 44 18" -> "212661204418"; "0661-204418" -> "212661204418".

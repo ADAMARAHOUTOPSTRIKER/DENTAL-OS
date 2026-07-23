@@ -54,7 +54,7 @@ interface UICtx {
   openNewPatient: () => void;
   openPreRegister: () => void;
   openReschedule: (appointment: Appointment) => void;
-  openPatientBooking: (patientId: string, prefill?: { act?: string }) => void;
+  openPatientBooking: (patientId: string, prefill?: { act?: string; day?: string }) => void;
   openSignature: (patientId: string, opts: { title: string; lines?: { act: string; price: number }[] }) => void;
   openNewAppointment: (patientId?: string) => void;
   openNewPlan: (patientId?: string) => void;
@@ -78,7 +78,7 @@ export function useUI() {
 type Modal =
   | { kind: "patient"; intake?: boolean }
   | { kind: "reschedule"; appointment: Appointment }
-  | { kind: "patientBooking"; patientId: string; act?: string }
+  | { kind: "patientBooking"; patientId: string; act?: string; day?: string }
   | { kind: "signature"; patientId: string; title: string; lines?: { act: string; price: number }[] }
   | { kind: "appointment"; patientId?: string }
   | { kind: "plan"; patientId?: string }
@@ -146,7 +146,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       openPreRegister: () => setModal({ kind: "patient", intake: true }),
       openReschedule: (appointment) => setModal({ kind: "reschedule", appointment }),
       openPatientBooking: (patientId, prefill) =>
-        setModal({ kind: "patientBooking", patientId, act: prefill?.act }),
+        setModal({ kind: "patientBooking", patientId, act: prefill?.act, day: prefill?.day }),
       openSignature: (patientId, opts) =>
         setModal({ kind: "signature", patientId, title: opts.title, lines: opts.lines }),
       openNewAppointment: (patientId) => setModal({ kind: "appointment", patientId }),
@@ -180,7 +180,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
         <RescheduleModal onClose={close} toast={toast} appointment={modal.appointment} />
       )}
       {modal?.kind === "patientBooking" && (
-        <PatientBookingModal onClose={close} toast={toast} patientId={modal.patientId} prefillAct={modal.act} />
+        <PatientBookingModal onClose={close} toast={toast} patientId={modal.patientId} prefillAct={modal.act} prefillDay={modal.day} />
       )}
       {modal?.kind === "signature" && (
         <SignatureModal onClose={close} toast={toast} patientId={modal.patientId} title={modal.title} lines={modal.lines} />
@@ -1067,11 +1067,12 @@ function PatientBookingModal({
   toast,
   patientId,
   prefillAct,
-}: Common & { patientId: string; prefillAct?: string }) {
+  prefillDay,
+}: Common & { patientId: string; prefillAct?: string; prefillDay?: string }) {
   const { t } = useApp();
   const { patientById, addAppointment } = useData();
   const me = patientById(patientId);
-  const [day, setDay] = useState(TODAY_ISO);
+  const [day, setDay] = useState(prefillDay ?? TODAY_ISO);
   const [time, setTime] = useState("09:30");
   const [act, setAct] = useState(prefillAct ?? "");
   const [practitioner, setPractitioner] = useState(PRACTITIONERS[0]);
