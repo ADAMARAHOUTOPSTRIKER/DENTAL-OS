@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Kpi, Avatar, Pill } from "@/components/ui/primitives";
-import { PageHeader, SectionCard, AgendaList, RecallList } from "@/components/app/blocks";
+import { Counter } from "@/components/ui/Counter";
+import { SectionCard, AgendaList, RecallList } from "@/components/app/blocks";
 import { RevenueArea, ActsDonut } from "@/components/app/charts";
 import { useData } from "@/components/app/DataProvider";
 import { TODAY_ISO } from "@/lib/data";
@@ -33,17 +34,49 @@ export default function DashboardPage() {
   const isDentist = role === "dentist";
   const name = isDentist ? "Dr. Bennani" : "Imane";
   const goPatient = (id: string) => router.push(`/app/patients?id=${id}`);
+  const today = new Intl.DateTimeFormat(lang === "ar" ? "ar-MA" : "fr-MA", {
+    weekday: "long", day: "numeric", month: "long",
+  }).format(new Date(2026, 6, 23));
 
   return (
     <>
-      <PageHeader
-        title={`${t("app.greeting.morning")}, ${name} 👋`}
-        subtitle={
-          lang === "ar"
-            ? "إليك ما يجري في العيادة اليوم."
-            : "Voici ce qui se passe au cabinet aujourd’hui."
-        }
-      />
+      {/* greeting hero */}
+      <div className="rise noise relative mb-6 overflow-hidden rounded-2xl bg-ink-950 p-6 text-white shadow-float">
+        <div className="pointer-events-none absolute inset-0 bg-aurora animate-aurora opacity-45" />
+        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full bg-teal-500/20 blur-[90px]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.06] [background:radial-gradient(120%_80%_at_50%_-10%,white,transparent)]" />
+        <div className="relative flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-teal-200">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-300 opacity-75" />
+                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-teal-300" />
+              </span>
+              <span className="capitalize">{today}</span>
+            </div>
+            <h1 className="mt-1.5 font-display text-2xl font-bold tracking-tight sm:text-3xl">
+              {t("app.greeting.morning")}, {name} 👋
+            </h1>
+            <p className="mt-1 text-sm text-white/60">
+              {lang === "ar" ? "إليك ما يجري في العيادة اليوم." : "Voici ce qui se passe au cabinet aujourd’hui."}
+            </p>
+          </div>
+          <div className="flex gap-6">
+            <div>
+              <div className="text-[11px] uppercase tracking-wide text-white/40">{t("sec.agenda")}</div>
+              <div className="font-display text-2xl font-bold tabular-nums">
+                <Counter value={todaysAppointments.length} format={(n) => String(Math.round(n))} />
+              </div>
+            </div>
+            <div className="border-s border-white/10 ps-6">
+              <div className="text-[11px] uppercase tracking-wide text-white/40">{t("kpi.due")}</div>
+              <div className="font-display text-2xl font-bold tabular-nums text-teal-300">
+                <Counter value={stats.dueToday} format={(n) => mad(n)} /> <span className="text-sm font-medium text-white/40">MAD</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
