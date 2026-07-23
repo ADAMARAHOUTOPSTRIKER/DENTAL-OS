@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type MouseEvent as ReactMouseEvent } from "react";
 import {
@@ -8,7 +7,6 @@ import {
   Headset,
   User,
   ArrowRight,
-  ArrowLeft,
 } from "lucide-react";
 import { useApp, type Role } from "@/lib/i18n";
 import { Logo } from "@/components/ui/primitives";
@@ -57,15 +55,13 @@ const ROLES: {
 ];
 
 export default function RoleChooser() {
-  const { t, setRole, dir } = useApp();
+  const { t, setRole } = useApp();
   const router = useRouter();
 
   const choose = (role: Role, to: string) => {
     setRole(role);
     router.push(to);
   };
-
-  const Back = dir === "rtl" ? ArrowRight : ArrowLeft;
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-ink-950 text-white">
@@ -75,10 +71,7 @@ export default function RoleChooser() {
       <div className="relative mx-auto flex min-h-screen max-w-6xl flex-col px-5 py-6">
         {/* top bar */}
         <div className="flex items-center justify-between">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm text-white/60 transition-colors hover:text-white">
-            <Back className="h-4 w-4" />
-            <Logo light />
-          </Link>
+          <Logo light />
           <LangToggle light />
         </div>
 

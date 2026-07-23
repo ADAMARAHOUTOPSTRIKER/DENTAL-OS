@@ -16,7 +16,6 @@ import {
   Bell,
   Plus,
   ArrowLeftRight,
-  Globe,
   Menu,
   X,
   UserPlus,
@@ -125,12 +124,6 @@ function SidebarFooter() {
           <ArrowLeftRight className="h-3.5 w-3.5" />
           {t("nav.switchrole")}
         </button>
-        <Link
-          href="/"
-          className="flex items-center justify-center gap-1.5 rounded-lg border border-black/5 bg-white px-2.5 py-2 text-xs font-medium text-ink-800/70 transition-colors hover:text-teal-600"
-        >
-          <Globe className="h-3.5 w-3.5" />
-        </Link>
       </div>
       <DbStatus />
     </div>
