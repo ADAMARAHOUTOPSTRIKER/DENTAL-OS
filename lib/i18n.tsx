@@ -272,6 +272,128 @@ export const DICT: Dict = {
   "common.save": { fr: "Enregistrer", ar: "حفظ" },
   "common.demo": { fr: "Démo", ar: "عرض" },
   "common.thismonth": { fr: "ce mois", ar: "هذا الشهر" },
+  "common.cancel": { fr: "Annuler", ar: "إلغاء" },
+  "common.create": { fr: "Créer", ar: "إنشاء" },
+  "common.confirm": { fr: "Confirmer", ar: "تأكيد" },
+  "common.download": { fr: "Télécharger", ar: "تحميل" },
+  "common.view": { fr: "Voir", ar: "عرض" },
+  "common.optional": { fr: "facultatif", ar: "اختياري" },
+
+  // ===== "Nouveau" quick-create menu =====
+  "new.menu": { fr: "Créer", ar: "إنشاء" },
+  "new.patient": { fr: "Nouveau patient", ar: "مريض جديد" },
+  "new.appointment": { fr: "Nouveau rendez-vous", ar: "موعد جديد" },
+  "new.plan": { fr: "Nouveau plan de traitement", ar: "خطة علاج جديدة" },
+  "new.payment": { fr: "Enregistrer un paiement", ar: "تسجيل دفعة" },
+  "new.document": { fr: "Nouveau document", ar: "وثيقة جديدة" },
+
+  // ===== Search =====
+  "search.none": { fr: "Aucun résultat", ar: "لا توجد نتائج" },
+  "search.hint": { fr: "Rechercher un patient…", ar: "ابحث عن مريض…" },
+
+  // ===== Form fields =====
+  "field.name": { fr: "Nom complet", ar: "الاسم الكامل" },
+  "field.phone": { fr: "Téléphone", ar: "الهاتف" },
+  "field.phone.hint": { fr: "pour les rappels WhatsApp", ar: "لتذكيرات واتساب" },
+  "field.age": { fr: "Âge", ar: "العمر" },
+  "field.gender": { fr: "Sexe", ar: "الجنس" },
+  "field.city": { fr: "Ville", ar: "المدينة" },
+  "field.male": { fr: "Homme", ar: "ذكر" },
+  "field.female": { fr: "Femme", ar: "أنثى" },
+  "field.tags": { fr: "Étiquettes", ar: "الوسوم" },
+  "field.alerts": { fr: "Alertes médicales", ar: "تنبيهات طبية" },
+  "field.amount": { fr: "Montant", ar: "المبلغ" },
+  "field.commalist": { fr: "séparés par des virgules", ar: "مفصولة بفواصل" },
+
+  // ===== Appointment modal =====
+  "appt.existing": { fr: "Patient existant", ar: "مريض موجود" },
+  "appt.newpatient": { fr: "Nouveau patient", ar: "مريض جديد" },
+  "appt.time": { fr: "Heure", ar: "الساعة" },
+  "appt.duration": { fr: "Durée (min)", ar: "المدة (دقيقة)" },
+  "appt.act": { fr: "Acte", ar: "الإجراء" },
+  "appt.practitioner": { fr: "Praticien", ar: "الطبيب" },
+  "appt.created": { fr: "Rendez-vous créé", ar: "تم إنشاء الموعد" },
+
+  // ===== Plan modal =====
+  "plan.lines": { fr: "Actes du devis", ar: "بنود الفاتورة" },
+  "plan.addline": { fr: "Ajouter un acte", ar: "إضافة إجراء" },
+  "plan.created": { fr: "Plan de traitement créé", ar: "تم إنشاء خطة العلاج" },
+  "plan.preparepdf": { fr: "Préparer le devis (PDF)", ar: "تحضير الفاتورة (PDF)" },
+  "plan.sent": { fr: "Devis envoyé au patient", ar: "أُرسلت الفاتورة للمريض" },
+  "plan.sending": { fr: "Génération du PDF…", ar: "جارٍ إنشاء PDF…" },
+
+  // ===== Documents =====
+  "doc.new": { fr: "Nouveau document", ar: "وثيقة جديدة" },
+  "doc.addexisting": { fr: "Ajouter à un document existant", ar: "إضافة إلى وثيقة موجودة" },
+  "doc.mode.new": { fr: "Créer un document", ar: "إنشاء وثيقة" },
+  "doc.mode.add": { fr: "Ajouter à un document", ar: "إضافة لوثيقة" },
+  "doc.title": { fr: "Titre du document", ar: "عنوان الوثيقة" },
+  "doc.category": { fr: "Catégorie", ar: "الفئة" },
+  "doc.files": { fr: "Fichiers", ar: "الملفات" },
+  "doc.choosefiles": { fr: "Choisir des fichiers ou une image", ar: "اختر ملفات أو صورة" },
+  "doc.pick": { fr: "Sélectionner un document", ar: "اختر وثيقة" },
+  "doc.added": { fr: "Document mis à jour", ar: "تم تحديث الوثيقة" },
+  "doc.created": { fr: "Document créé", ar: "تم إنشاء الوثيقة" },
+  "doc.empty": { fr: "Aucun document. Cliquez sur « Ajouter ».", ar: "لا توجد وثائق. اضغط « إضافة »." },
+  "doc.files.count": { fr: "fichier(s)", ar: "ملف/ملفات" },
+  "cat.xray": { fr: "Radiographie", ar: "أشعة" },
+  "cat.photo": { fr: "Photo avant / après", ar: "صورة قبل / بعد" },
+  "cat.doc": { fr: "Document", ar: "وثيقة" },
+
+  // ===== Message / reminder =====
+  "msg.title": { fr: "Envoyer un message", ar: "إرسال رسالة" },
+  "msg.to": { fr: "À", ar: "إلى" },
+  "msg.placeholder": { fr: "Votre message…", ar: "رسالتك…" },
+  "msg.send": { fr: "Ouvrir dans WhatsApp", ar: "فتح في واتساب" },
+  "msg.sent": { fr: "WhatsApp ouvert", ar: "تم فتح واتساب" },
+  "msg.nophone": {
+    fr: "Aucun numéro enregistré pour ce patient.",
+    ar: "لا يوجد رقم مسجّل لهذا المريض.",
+  },
+  "msg.whatsapphint": {
+    fr: "S’ouvre dans WhatsApp avec le message pré-rempli, prêt à envoyer.",
+    ar: "يفتح في واتساب مع الرسالة المُعبّأة مسبقًا، جاهزة للإرسال.",
+  },
+  "msg.reminder.tmpl": {
+    fr: "Bonjour, ceci est un rappel de votre rendez-vous au cabinet. À bientôt !",
+    ar: "مرحبًا، هذا تذكير بموعدك في العيادة. إلى اللقاء!",
+  },
+  // Personalized templates. Placeholders: {name} {date} {time} {act} {reason} {clinic}
+  "msg.tmpl.blank": { fr: "Bonjour {name}, ", ar: "مرحبًا {name}، " },
+  "msg.tmpl.reminder": {
+    fr: "Bonjour {name}, petit rappel de votre rendez-vous au {clinic} le {date} à {time}{act}. Merci de confirmer votre présence. À bientôt !",
+    ar: "مرحبًا {name}، تذكير بموعدكم في {clinic} يوم {date} على الساعة {time}{act}. نرجو تأكيد الحضور. إلى اللقاء!",
+  },
+  "msg.tmpl.reminder.noappt": {
+    fr: "Bonjour {name}, petit rappel de votre suivi au {clinic}. Merci de nous recontacter pour fixer votre prochain rendez-vous. À bientôt !",
+    ar: "مرحبًا {name}، تذكير بمتابعتكم في {clinic}. نرجو التواصل معنا لتحديد موعدكم القادم. إلى اللقاء!",
+  },
+  "msg.tmpl.recall": {
+    fr: "Bonjour {name}, il est temps pour votre {reason} au {clinic}. Souhaitez-vous que l’on vous réserve un créneau ? À bientôt !",
+    ar: "مرحبًا {name}، حان وقت {reason} في {clinic}. هل تودّون أن نحجز لكم موعدًا؟ إلى اللقاء!",
+  },
+  "msg.clinic": { fr: "Cabinet Dentaire", ar: "عيادة الأسنان" },
+  "appt.day": { fr: "Jour", ar: "اليوم" },
+  "appt.today": { fr: "aujourd’hui", ar: "اليوم" },
+  "cal.noappts": { fr: "Aucun rendez-vous ce jour", ar: "لا مواعيد في هذا اليوم" },
+  "cal.week": { fr: "Semaine", ar: "الأسبوع" },
+
+  // ===== Row actions =====
+  "act.message": { fr: "Envoyer un message", ar: "إرسال رسالة" },
+  "act.reminder": { fr: "Rappel de RDV", ar: "تذكير بالموعد" },
+  "act.delete": { fr: "Supprimer le compte", ar: "حذف الحساب" },
+  "act.book": { fr: "Prendre RDV", ar: "حجز موعد" },
+  "act.reminded": { fr: "Rappel envoyé", ar: "تم إرسال التذكير" },
+  "del.title": { fr: "Supprimer ce patient ?", ar: "حذف هذا المريض؟" },
+  "del.desc": {
+    fr: "Le compte et tout son historique (RDV, plans, paiements, documents) seront supprimés. Action irréversible.",
+    ar: "سيتم حذف الحساب وكل سجله (المواعيد، الخطط، المدفوعات، الوثائق). إجراء لا رجعة فيه.",
+  },
+
+  // ===== Payments =====
+  "pay.recorded": { fr: "Paiement enregistré", ar: "تم تسجيل الدفعة" },
+  "pay.selectpatient": { fr: "Choisir un patient", ar: "اختر مريضًا" },
+  "pay.new": { fr: "Nouveau paiement", ar: "دفعة جديدة" },
 };
 
 interface Store {

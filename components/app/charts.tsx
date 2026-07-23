@@ -14,14 +14,16 @@ import {
   Bar,
   CartesianGrid,
 } from "recharts";
-import { revenueTrend, actsMix, weeklyLoad } from "@/lib/data";
+import { revenueTrend as seedTrend, actsMix as seedMix, weeklyLoad } from "@/lib/data";
+import { mad } from "@/lib/utils";
 
 const axis = { fontSize: 11, fill: "#0d304066" };
 
-export function RevenueArea() {
+export function RevenueArea({ data }: { data?: { m: string; v: number }[] }) {
+  const series = data ?? seedTrend;
   return (
     <ResponsiveContainer width="100%" height={220}>
-      <AreaChart data={revenueTrend} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
+      <AreaChart data={series} margin={{ top: 10, right: 8, left: -6, bottom: 0 }}>
         <defs>
           <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#2ec4b6" stopOpacity={0.4} />
@@ -30,11 +32,17 @@ export function RevenueArea() {
         </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="#0d304012" vertical={false} />
         <XAxis dataKey="m" tick={axis} axisLine={false} tickLine={false} />
-        <YAxis tick={axis} axisLine={false} tickLine={false} width={40} />
+        <YAxis
+          tick={axis}
+          axisLine={false}
+          tickLine={false}
+          width={52}
+          tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : `${v}`)}
+        />
         <Tooltip
           cursor={{ stroke: "#2ec4b6", strokeWidth: 1 }}
           contentStyle={{ borderRadius: 12, border: "1px solid #0d304014", fontSize: 12, boxShadow: "0 12px 32px -16px rgba(8,34,46,0.25)" }}
-          formatter={((v: number) => [`${v} K MAD`, "Revenu"]) as never}
+          formatter={((v: number) => [`${mad(v)} MAD`, "Encaissé"]) as never}
         />
         <Area
           type="monotone"
@@ -51,13 +59,14 @@ export function RevenueArea() {
   );
 }
 
-export function ActsDonut() {
+export function ActsDonut({ data }: { data?: { name: string; value: number; color: string }[] }) {
+  const mix = data && data.length ? data : seedMix;
   return (
     <div className="flex items-center gap-4">
       <ResponsiveContainer width={150} height={150}>
         <PieChart>
           <Pie
-            data={actsMix}
+            data={mix}
             dataKey="value"
             nameKey="name"
             innerRadius={45}
@@ -66,7 +75,7 @@ export function ActsDonut() {
             stroke="none"
             isAnimationActive={false}
           >
-            {actsMix.map((a) => (
+            {mix.map((a) => (
               <Cell key={a.name} fill={a.color} />
             ))}
           </Pie>
@@ -77,7 +86,7 @@ export function ActsDonut() {
         </PieChart>
       </ResponsiveContainer>
       <ul className="flex-1 space-y-2">
-        {actsMix.map((a) => (
+        {mix.map((a) => (
           <li key={a.name} className="flex items-center gap-2 text-xs">
             <span className="h-2.5 w-2.5 rounded-full" style={{ background: a.color }} />
             <span className="flex-1 text-ink-800/70">{a.name}</span>

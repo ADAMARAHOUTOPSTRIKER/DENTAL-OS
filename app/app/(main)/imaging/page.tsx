@@ -1,124 +1,161 @@
 "use client";
 
-import { useState } from "react";
-import { Upload, ScanLine, ImageIcon, FileText, Download, Eye } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Upload, ScanLine, ImageIcon, FileText, Plus, Eye } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Button, Avatar } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/app/blocks";
 import { XrayArt, SmileArt } from "@/components/app/DentalArt";
+import { useData } from "@/components/app/DataProvider";
+import { useUI } from "@/components/app/ModalProvider";
 import { cn } from "@/lib/utils";
+import type { ClinicDocument, DocCategory, DocFile } from "@/lib/data";
 
-const XRAYS = [
-  { patient: "Youssef Berrada", date: "30 Jun 2026", type: "Panoramique" },
-  { patient: "Mehdi Benali", date: "02 Jul 2026", type: "Rétro-alvéolaire 16" },
-  { patient: "Salma Cherkaoui", date: "18 May 2026", type: "Panoramique" },
-];
-const CASES = [
-  { patient: "Salma Cherkaoui", act: "Blanchiment", date: "20 Jul 2026" },
-  { patient: "Yasmine Alaoui", act: "Facette 21", date: "12 Jun 2026" },
-];
-const DOCS = [
-  { name: "Consentement — implant.pdf", patient: "Youssef Berrada", size: "240 Ko" },
-  { name: "Devis orthodontie.pdf", patient: "Yasmine Alaoui", size: "180 Ko" },
-  { name: "Ordonnance — amoxicilline.pdf", patient: "Nawal Fassi", size: "96 Ko" },
-];
+const CAT_ICON = { xray: ScanLine, photo: ImageIcon, doc: FileText } as const;
+
+function openFile(f: DocFile) {
+  if (!f.dataUrl) return;
+  const w = window.open();
+  if (!w) return;
+  if (f.kind === "image")
+    w.document.write(`<img src="${f.dataUrl}" style="max-width:100%;height:auto;display:block;margin:auto"/>`);
+  else w.location.href = f.dataUrl;
+}
+
+function FileThumb({ file, category }: { file: DocFile; category: DocCategory }) {
+  const clickable = !!file.dataUrl;
+  const body =
+    file.dataUrl && file.kind === "image" ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={file.dataUrl} alt={file.name} className="h-28 w-full object-cover" />
+    ) : file.kind === "image" && category === "xray" ? (
+      <XrayArt className="h-28 w-full object-cover" />
+    ) : file.kind === "image" ? (
+      <SmileArt className="h-28 w-full" />
+    ) : (
+      <div className="grid h-28 w-full place-items-center bg-rose-50 text-rose-400">
+        <FileText className="h-8 w-8" />
+      </div>
+    );
+
+  return (
+    <button
+      onClick={() => openFile(file)}
+      disabled={!clickable}
+      className="group relative overflow-hidden rounded-xl border border-black/5 bg-sand-50 text-start"
+      title={file.name}
+    >
+      {body}
+      {clickable && (
+        <span className="absolute inset-0 grid place-items-center bg-ink-950/0 opacity-0 transition-all group-hover:bg-ink-950/30 group-hover:opacity-100">
+          <span className="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-ink-900"><Eye className="h-4 w-4" /></span>
+        </span>
+      )}
+      <span className="block truncate px-2 py-1.5 text-[11px] text-ink-800/60">{file.name}</span>
+    </button>
+  );
+}
 
 export default function ImagingPage() {
   const { t } = useApp();
-  const tabs = [
+  const { documents } = useData();
+  const ui = useUI();
+  const [cat, setCat] = useState<"all" | DocCategory>("all");
+
+  const cats: { key: "all" | DocCategory; label: string; icon?: typeof ScanLine }[] = [
+    { key: "all", label: t("app.viewall") },
     { key: "xray", label: t("imaging.xray"), icon: ScanLine },
-    { key: "photos", label: t("imaging.photos"), icon: ImageIcon },
-    { key: "docs", label: t("imaging.docs"), icon: FileText },
+    { key: "photo", label: t("imaging.photos"), icon: ImageIcon },
+    { key: "doc", label: t("imaging.docs"), icon: FileText },
   ];
-  const [tab, setTab] = useState("xray");
+
+  // Group documents by patient (respecting the category filter).
+  const groups = useMemo(() => {
+    const filtered = documents.filter((d) => cat === "all" || d.category === cat);
+    const map = new Map<string, { patient: string; docs: ClinicDocument[] }>();
+    filtered.forEach((d) => {
+      const g = map.get(d.patientId) ?? { patient: d.patient, docs: [] };
+      g.docs.push(d);
+      map.set(d.patientId, g);
+    });
+    return Array.from(map.entries()).map(([patientId, g]) => ({ patientId, ...g }));
+  }, [documents, cat]);
 
   return (
     <>
       <PageHeader
         title={t("imaging.title")}
         subtitle={t("f.imaging.d")}
-        action={<Button variant="primary"><Upload className="h-4 w-4" /> {t("imaging.upload")}</Button>}
+        action={<Button variant="primary" onClick={() => ui.openNewDocument()}><Upload className="h-4 w-4" /> {t("imaging.upload")}</Button>}
       />
 
-      <div className="rise mb-5 flex gap-1 rounded-xl border border-black/5 bg-white p-1" style={{ width: "fit-content" }}>
-        {tabs.map((tb) => (
+      <div className="rise mb-5 flex flex-wrap gap-1 rounded-xl border border-black/5 bg-white p-1" style={{ width: "fit-content" }}>
+        {cats.map((c) => (
           <button
-            key={tb.key}
-            onClick={() => setTab(tb.key)}
+            key={c.key}
+            onClick={() => setCat(c.key)}
             className={cn(
               "flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors",
-              tab === tb.key ? "bg-ink-900 text-white" : "text-ink-800/60 hover:text-ink-900"
+              cat === c.key ? "bg-ink-900 text-white" : "text-ink-800/60 hover:text-ink-900"
             )}
           >
-            <tb.icon className="h-4 w-4" /> {tb.label}
+            {c.icon && <c.icon className="h-4 w-4" />} {c.label}
           </button>
         ))}
       </div>
 
-      {tab === "xray" && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {XRAYS.map((x, i) => (
-            <div key={i} className="rise group overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card transition-all hover:-translate-y-1 hover:shadow-float" style={{ animationDelay: `${i * 0.06}s` }}>
-              <div className="relative">
-                <XrayArt className="h-44 w-full object-cover" />
-                <div className="absolute inset-0 grid place-items-center bg-ink-950/0 opacity-0 transition-all group-hover:bg-ink-950/30 group-hover:opacity-100">
-                  <span className="grid h-10 w-10 place-items-center rounded-full bg-white/90 text-ink-900"><Eye className="h-5 w-5" /></span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2.5 p-3">
-                <Avatar name={x.patient} size={32} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-ink-900">{x.patient}</div>
-                  <div className="truncate text-xs text-ink-800/50">{x.type} · {x.date}</div>
-                </div>
-              </div>
-            </div>
-          ))}
+      {groups.length === 0 && (
+        <div className="grid place-items-center gap-3 rounded-2xl border border-dashed border-black/10 py-20 text-center">
+          <span className="text-sm text-ink-800/40">{t("doc.empty")}</span>
+          <Button variant="outline" onClick={() => ui.openNewDocument()}><Upload className="h-4 w-4" /> {t("imaging.upload")}</Button>
         </div>
       )}
 
-      {tab === "photos" && (
-        <div className="grid gap-5 sm:grid-cols-2">
-          {CASES.map((c, i) => (
-            <div key={i} className="rise overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card" style={{ animationDelay: `${i * 0.06}s` }}>
-              <div className="grid grid-cols-2">
-                <div className="relative">
-                  <SmileArt className="h-40 w-full" />
-                  <span className="absolute left-2 top-2 rounded-md bg-ink-950/70 px-2 py-0.5 text-[11px] font-semibold text-white">{t("imaging.before")}</span>
-                </div>
-                <div className="relative border-s border-black/5">
-                  <SmileArt bright className="h-40 w-full" />
-                  <span className="absolute left-2 top-2 rounded-md bg-teal-500 px-2 py-0.5 text-[11px] font-semibold text-white">{t("imaging.after")}</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2.5 p-3">
-                <Avatar name={c.patient} size={32} />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-ink-900">{c.patient}</div>
-                  <div className="truncate text-xs text-ink-800/50">{c.act} · {c.date}</div>
-                </div>
+      <div className="space-y-5">
+        {groups.map((g, gi) => (
+          <section
+            key={g.patientId}
+            className="rise rounded-2xl border border-black/5 bg-white p-5 shadow-card"
+            style={{ animationDelay: `${gi * 0.05}s` }}
+          >
+            <div className="mb-4 flex items-center gap-3">
+              <Avatar name={g.patient} size={38} />
+              <div className="flex-1">
+                <div className="font-display text-base font-semibold text-ink-900">{g.patient}</div>
+                <div className="text-xs text-ink-800/50">{g.docs.length} {t("imaging.docs").toLowerCase()}</div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      {tab === "docs" && (
-        <div className="rise overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card">
-          <ul className="divide-y divide-black/5">
-            {DOCS.map((d, i) => (
-              <li key={i} className="flex items-center gap-3 px-5 py-3.5 hover:bg-sand-50">
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-rose-50 text-rose-500"><FileText className="h-5 w-5" /></span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold text-ink-900">{d.name}</div>
-                  <div className="truncate text-xs text-ink-800/50">{d.patient} · {d.size}</div>
-                </div>
-                <button className="grid h-9 w-9 place-items-center rounded-lg text-ink-800/50 hover:bg-white hover:text-teal-600"><Download className="h-4 w-4" /></button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+            <div className="space-y-4">
+              {g.docs.map((d) => {
+                const Icon = CAT_ICON[d.category];
+                return (
+                  <div key={d.id} className="rounded-xl border border-black/5 bg-sand-50/60 p-3">
+                    <div className="mb-2.5 flex items-center gap-2">
+                      <span className="grid h-7 w-7 place-items-center rounded-lg bg-teal-50 text-teal-600"><Icon className="h-3.5 w-3.5" /></span>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-ink-900">{d.title}</div>
+                        <div className="truncate text-[11px] text-ink-800/50">{t(`cat.${d.category}`)} · {d.createdAt} · {d.files.length} {t("doc.files.count")}</div>
+                      </div>
+                      <button
+                        onClick={() => ui.openNewDocument({ patientId: g.patientId, docId: d.id })}
+                        className="inline-flex items-center gap-1 rounded-lg border border-black/5 bg-white px-2.5 py-1.5 text-xs font-medium text-ink-800/70 transition-colors hover:border-teal-300 hover:text-teal-600"
+                      >
+                        <Plus className="h-3.5 w-3.5" /> {t("imaging.upload")}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+                      {d.files.map((f, i) => (
+                        <FileThumb key={i} file={f} category={d.category} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
     </>
   );
 }

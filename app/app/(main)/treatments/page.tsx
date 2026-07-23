@@ -1,34 +1,47 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Check, Share2 } from "lucide-react";
+import { Plus, Check, FileText, Loader2 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill, Button } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/app/blocks";
 import { useData } from "@/components/app/DataProvider";
-import { type PlanStatus } from "@/lib/data";
+import { useUI } from "@/components/app/ModalProvider";
 import { mad } from "@/lib/utils";
 
 export default function TreatmentsPage() {
   const { t } = useApp();
-  const { treatmentPlans } = useData();
-  const [statuses, setStatuses] = useState<Record<string, PlanStatus>>({});
-  const [shared, setShared] = useState<Record<string, boolean>>({});
+  const { treatmentPlans, setPlanStatus, patientById } = useData();
+  const ui = useUI();
+  const [sending, setSending] = useState<Record<string, "busy" | "done" | undefined>>({});
 
-  const statusFor = (id: string, fallback: PlanStatus) => statuses[id] ?? fallback;
+  const prepareDevis = async (planId: string) => {
+    const plan = treatmentPlans.find((p) => p.id === planId);
+    if (!plan) return;
+    setSending((s) => ({ ...s, [planId]: "busy" }));
+    await ui.sendDevis(plan, patientById(plan.patientId));
+    setSending((s) => ({ ...s, [planId]: "done" }));
+  };
 
   return (
     <>
       <PageHeader
         title={t("treat.title")}
         subtitle={t("f.plans.d")}
-        action={<Button variant="primary"><Plus className="h-4 w-4" /> {t("app.new")}</Button>}
+        action={<Button variant="primary" onClick={() => ui.openNewPlan()}><Plus className="h-4 w-4" /> {t("app.new")}</Button>}
       />
+
+      {treatmentPlans.length === 0 && (
+        <div className="rise grid place-items-center rounded-2xl border border-dashed border-black/10 py-20 text-sm text-ink-800/40">
+          {t("doc.empty")}
+        </div>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-2">
         {treatmentPlans.map((plan, idx) => {
           const total = plan.lines.reduce((s, l) => s + l.price, 0);
-          const status = statusFor(plan.id, plan.status);
+          const status = plan.status;
+          const send = sending[plan.id];
           return (
             <div key={plan.id} className="rise flex flex-col rounded-2xl border border-black/5 bg-white p-5 shadow-card" style={{ animationDelay: `${idx * 0.06}s` }}>
               <div className="flex items-center justify-between">
@@ -70,16 +83,19 @@ export default function TreatmentsPage() {
                   variant={status === "accepted" ? "outline" : "primary"}
                   className="flex-1"
                   disabled={status === "accepted"}
-                  onClick={() => setStatuses((s) => ({ ...s, [plan.id]: "accepted" }))}
+                  onClick={() => setPlanStatus(plan.id, "accepted")}
                 >
                   <Check className="h-4 w-4" /> {status === "accepted" ? t("status.accepted") : t("treat.accept")}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShared((s) => ({ ...s, [plan.id]: true }))}
-                >
-                  {shared[plan.id] ? <Check className="h-4 w-4 text-teal-600" /> : <Share2 className="h-4 w-4" />}
-                  {shared[plan.id] ? t("reminder.sent") : t("treat.share")}
+                <Button variant="outline" onClick={() => prepareDevis(plan.id)} disabled={send === "busy"}>
+                  {send === "busy" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : send === "done" ? (
+                    <Check className="h-4 w-4 text-teal-600" />
+                  ) : (
+                    <FileText className="h-4 w-4" />
+                  )}
+                  {send === "done" ? t("plan.sent") : t("plan.preparepdf")}
                 </Button>
               </div>
             </div>

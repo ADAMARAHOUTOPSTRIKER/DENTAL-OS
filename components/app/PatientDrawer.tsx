@@ -12,19 +12,42 @@ import {
   FileText,
   Wallet,
   Activity,
+  Images,
+  Download,
+  Trash2,
+  ScanLine,
+  ImageIcon,
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill, Button } from "@/components/ui/primitives";
 import { cn, mad } from "@/lib/utils";
 import { useData } from "@/components/app/DataProvider";
-import { type Patient } from "@/lib/data";
+import { useUI } from "@/components/app/ModalProvider";
+import { type Patient, type ClinicDocument, type DocFile } from "@/lib/data";
 
 const TABS = [
   { key: "overview", labelKey: "detail.overview", icon: Activity },
   { key: "plan", labelKey: "detail.plan", icon: FileText },
+  { key: "documents", labelKey: "detail.imaging", icon: Images },
   { key: "payments", labelKey: "detail.payments", icon: Wallet },
   { key: "family", labelKey: "detail.family", icon: Users },
 ];
+
+const CAT_ICON = { xray: ScanLine, photo: ImageIcon, doc: FileText } as const;
+
+function openFile(f: DocFile) {
+  if (!f.dataUrl) return;
+  const w = window.open();
+  if (w) {
+    if (f.kind === "image") {
+      w.document.write(
+        `<img src="${f.dataUrl}" style="max-width:100%;height:auto;display:block;margin:auto" />`
+      );
+    } else {
+      w.location.href = f.dataUrl;
+    }
+  }
+}
 
 export default function PatientDrawer({
   patient,
@@ -34,11 +57,13 @@ export default function PatientDrawer({
   onClose: () => void;
 }) {
   const { t } = useApp();
-  const { treatmentPlans, payments, patientById } = useData();
+  const { treatmentPlans, payments, documents, patientById } = useData();
+  const ui = useUI();
   const [tab, setTab] = useState("overview");
 
   const plan = treatmentPlans.find((p) => p.patientId === patient.id);
   const pays = payments.filter((p) => p.patientId === patient.id);
+  const docs = documents.filter((d) => d.patientId === patient.id);
   const family = patient.family.map((id) => patientById(id)).filter(Boolean) as Patient[];
 
   return (
@@ -59,9 +84,18 @@ export default function PatientDrawer({
                   </p>
                 </div>
               </div>
-              <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 hover:bg-white/20">
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => ui.openDelete(patient)}
+                  className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white/80 hover:bg-rose-500/80 hover:text-white"
+                  title={t("act.delete")}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <button onClick={onClose} className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 hover:bg-white/20">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-2">
               {patient.tags.map((tag) => (
@@ -71,10 +105,14 @@ export default function PatientDrawer({
               ))}
             </div>
             <div className="mt-4 flex gap-2">
-              <Button variant="primary" className="flex-1">
+              <Button variant="primary" className="flex-1" onClick={() => ui.openNewAppointment(patient.id)}>
                 <CalendarPlus className="h-4 w-4" /> {t("detail.book")}
               </Button>
-              <Button variant="outline" className="border-white/20 bg-white/5 text-white hover:border-teal-300 hover:text-teal-200">
+              <Button
+                variant="outline"
+                className="border-white/20 bg-white/5 text-white hover:border-teal-300 hover:text-teal-200"
+                onClick={() => ui.openMessage(patient)}
+              >
                 <MessageSquare className="h-4 w-4" /> {t("detail.message")}
               </Button>
             </div>
@@ -98,13 +136,13 @@ export default function PatientDrawer({
         )}
 
         {/* tabs */}
-        <div className="flex gap-1 border-b border-black/5 bg-white px-3">
+        <div className="flex gap-1 overflow-x-auto border-b border-black/5 bg-white px-3">
           {TABS.map((tb) => (
             <button
               key={tb.key}
               onClick={() => setTab(tb.key)}
               className={cn(
-                "relative flex items-center gap-1.5 px-3 py-3 text-sm font-medium transition-colors",
+                "relative flex shrink-0 items-center gap-1.5 px-3 py-3 text-sm font-medium transition-colors",
                 tab === tb.key ? "text-teal-700" : "text-ink-800/50 hover:text-ink-900"
               )}
             >
@@ -120,7 +158,7 @@ export default function PatientDrawer({
           {tab === "overview" && (
             <div className="space-y-3">
               <InfoRow icon={<Phone className="h-4 w-4" />} label={t("col.phone")} value={patient.phone} />
-              <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("col.name")} value={patient.city} />
+              <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("field.city")} value={patient.city} />
               <div className="grid grid-cols-2 gap-3">
                 <MiniStat label={t("col.last")} value={patient.lastVisit} />
                 <MiniStat label={t("col.next")} value={patient.nextVisit ?? "—"} />
@@ -132,6 +170,11 @@ export default function PatientDrawer({
                     {mad(patient.balance)} {t("common.mad")}
                   </span>
                 </div>
+                {patient.balance > 0 && (
+                  <Button variant="outline" className="mt-3 w-full" onClick={() => ui.openPayment(patient.id)}>
+                    <Wallet className="h-4 w-4" /> {t("pay.record")}
+                  </Button>
+                )}
               </div>
             </div>
           )}
@@ -164,9 +207,26 @@ export default function PatientDrawer({
                     {mad(plan.lines.reduce((s, l) => s + l.price, 0))} {t("common.mad")}
                   </span>
                 </div>
+                <Button variant="outline" className="mt-4 w-full" onClick={() => ui.sendDevis(plan, patient)}>
+                  <FileText className="h-4 w-4" /> {t("plan.preparepdf")}
+                </Button>
               </div>
             ) : (
-              <Empty label="—" />
+              <EmptyCta label={t("doc.empty")} onClick={() => ui.openNewPlan(patient.id)} cta={t("new.plan")} />
+            ))}
+
+          {tab === "documents" &&
+            (docs.length ? (
+              <div className="space-y-3">
+                {docs.map((d) => (
+                  <DocCard key={d.id} doc={d} />
+                ))}
+                <Button variant="outline" className="w-full" onClick={() => ui.openNewDocument({ patientId: patient.id })}>
+                  <Images className="h-4 w-4" /> {t("imaging.upload")}
+                </Button>
+              </div>
+            ) : (
+              <EmptyCta label={t("doc.empty")} onClick={() => ui.openNewDocument({ patientId: patient.id })} cta={t("imaging.upload")} />
             ))}
 
           {tab === "payments" &&
@@ -209,6 +269,37 @@ export default function PatientDrawer({
   );
 }
 
+function DocCard({ doc }: { doc: ClinicDocument }) {
+  const { t } = useApp();
+  const Icon = CAT_ICON[doc.category];
+  return (
+    <div className="rounded-xl border border-black/5 bg-white p-3">
+      <div className="flex items-center gap-2.5">
+        <span className="grid h-9 w-9 place-items-center rounded-lg bg-teal-50 text-teal-600">
+          <Icon className="h-4 w-4" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-semibold text-ink-900">{doc.title}</div>
+          <div className="truncate text-xs text-ink-800/50">{t(`cat.${doc.category}`)} · {doc.createdAt}</div>
+        </div>
+      </div>
+      <ul className="mt-2 space-y-1">
+        {doc.files.map((f, i) => (
+          <li key={i} className="flex items-center gap-2 rounded-lg bg-sand-50 px-2.5 py-1.5 text-xs">
+            <FileText className="h-3.5 w-3.5 text-ink-800/40" />
+            <span className="flex-1 truncate text-ink-800/70">{f.name}</span>
+            {f.dataUrl && (
+              <button onClick={() => openFile(f)} className="grid h-6 w-6 place-items-center rounded text-ink-800/50 hover:text-teal-600" title={t("common.view")}>
+                <Download className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function InfoRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-black/5 bg-white p-3">
@@ -234,6 +325,15 @@ function Empty({ label }: { label: string }) {
   return (
     <div className="grid place-items-center rounded-xl border border-dashed border-black/10 py-10 text-sm text-ink-800/40">
       {label}
+    </div>
+  );
+}
+
+function EmptyCta({ label, onClick, cta }: { label: string; onClick: () => void; cta: string }) {
+  return (
+    <div className="grid place-items-center gap-3 rounded-xl border border-dashed border-black/10 py-10 text-center">
+      <span className="text-sm text-ink-800/40">{label}</span>
+      <Button variant="outline" onClick={onClick}>{cta}</Button>
     </div>
   );
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
 import { Send, Check, Clock, MoreHorizontal, ChevronRight } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill } from "@/components/ui/primitives";
+import { useData } from "@/components/app/DataProvider";
+import { useUI } from "@/components/app/ModalProvider";
 import { cn } from "@/lib/utils";
 import type { Appointment, Recall } from "@/lib/data";
 
@@ -60,18 +61,22 @@ export function SectionCard({
   );
 }
 
-/* ---------- Reminder button (interactive) ---------- */
-export function ReminderButton({ initialSent = false }: { initialSent?: boolean }) {
+/* ---------- Reminder button (controlled — opens WhatsApp modal) ---------- */
+export function ReminderButton({
+  sent,
+  onClick,
+}: {
+  sent: boolean;
+  onClick: () => void;
+}) {
   const { t } = useApp();
-  const [sent, setSent] = useState(initialSent);
   return (
     <button
-      onClick={() => setSent(true)}
-      disabled={sent}
+      onClick={onClick}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-all duration-300",
         sent
-          ? "bg-teal-50 text-teal-700"
+          ? "bg-teal-50 text-teal-700 hover:bg-teal-100"
           : "bg-ink-900/[0.04] text-ink-800/70 hover:bg-teal-500 hover:text-white active:scale-95"
       )}
       title={t("reminder.via")}
@@ -91,6 +96,13 @@ export function AgendaList({
   onSelect?: (patientId: string) => void;
 }) {
   const { t } = useApp();
+  const { markApptReminder, patientById } = useData();
+  const ui = useUI();
+  const openReminder = (a: Appointment) => {
+    const p = patientById(a.patientId);
+    if (!p) return;
+    ui.openMessage(p, { reminder: true, onSent: () => markApptReminder(a.id) });
+  };
   return (
     <ul className="divide-y divide-black/5">
       {items.map((a) => (
@@ -119,7 +131,7 @@ export function AgendaList({
           </button>
           <Pill tone={a.status}>{t(`status.${a.status}`)}</Pill>
           <div className="hidden sm:block">
-            <ReminderButton initialSent={a.reminderSent} />
+            <ReminderButton sent={a.reminderSent} onClick={() => openReminder(a)} />
           </div>
         </li>
       ))}
@@ -129,6 +141,13 @@ export function AgendaList({
 
 /* ---------- Recall list ---------- */
 export function RecallList({ items }: { items: Recall[] }) {
+  const { markRecallSent, patientById } = useData();
+  const ui = useUI();
+  const openReminder = (r: Recall) => {
+    const p = patientById(r.patientId);
+    if (!p) return;
+    ui.openMessage(p, { recallReason: r.reason, onSent: () => markRecallSent(r.patientId) });
+  };
   return (
     <ul className="space-y-2.5">
       {items.map((r) => (
@@ -143,7 +162,7 @@ export function RecallList({ items }: { items: Recall[] }) {
               <Clock className="h-3 w-3" /> {r.reason} · {r.due}
             </div>
           </div>
-          <ReminderButton initialSent={r.reminderSent} />
+          <ReminderButton sent={r.reminderSent} onClick={() => openReminder(r)} />
         </li>
       ))}
     </ul>

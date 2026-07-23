@@ -16,17 +16,28 @@ import { Button, Pill } from "@/components/ui/primitives";
 import { PageHeader, SectionCard } from "@/components/app/blocks";
 import { useData } from "@/components/app/DataProvider";
 import { mad } from "@/lib/utils";
+import type { DocFile } from "@/lib/data";
+
+function openFile(f: DocFile) {
+  if (!f.dataUrl) return;
+  const w = window.open();
+  if (!w) return;
+  if (f.kind === "image")
+    w.document.write(`<img src="${f.dataUrl}" style="max-width:100%;height:auto;display:block;margin:auto"/>`);
+  else w.location.href = f.dataUrl;
+}
 
 export default function PortalPage() {
   const { t, lang } = useApp();
-  const { patientById, treatmentPlans, payments } = useData();
+  const { patientById, treatmentPlans, payments, documents } = useData();
   const me = patientById("p1")!; // Yasmine Alaoui — always present (seed + Supabase)
   const plan = treatmentPlans.find((p) => p.patientId === me.id);
   const myPays = payments.filter((p) => p.patientId === me.id);
+  const myDocs = documents.filter((d) => d.patientId === me.id);
   const [confirmed, setConfirmed] = useState(false);
 
   const total = plan?.lines.reduce((s, l) => s + l.price, 0) ?? 0;
-  const paidSoFar = 300 * 4;
+  const paidSoFar = myPays.reduce((s, p) => s + p.amount, 0);
 
   return (
     <>
@@ -91,15 +102,33 @@ export default function PortalPage() {
         <div className="space-y-5">
           {/* documents */}
           <SectionCard title={t("portal.docs")} delay={0.08}>
-            <ul className="space-y-2">
-              {["Devis orthodontie.pdf", "Consentement de soins.pdf"].map((d) => (
-                <li key={d} className="flex items-center gap-3 rounded-xl border border-black/5 bg-white p-3">
-                  <span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-50 text-rose-500"><FileText className="h-4 w-4" /></span>
-                  <span className="flex-1 truncate text-sm font-medium text-ink-900">{d}</span>
-                  <button className="grid h-8 w-8 place-items-center rounded-lg text-ink-800/50 hover:bg-sand-50 hover:text-teal-600"><Download className="h-4 w-4" /></button>
-                </li>
-              ))}
-            </ul>
+            {myDocs.length ? (
+              <ul className="space-y-2">
+                {myDocs.flatMap((d) =>
+                  d.files.map((f, i) => (
+                    <li key={`${d.id}-${i}`} className="flex items-center gap-3 rounded-xl border border-black/5 bg-white p-3">
+                      <span className="grid h-9 w-9 place-items-center rounded-lg bg-rose-50 text-rose-500"><FileText className="h-4 w-4" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-ink-900">{f.name}</span>
+                        <span className="block truncate text-xs text-ink-800/45">{d.title}</span>
+                      </span>
+                      <button
+                        onClick={() => openFile(f)}
+                        disabled={!f.dataUrl}
+                        className="grid h-8 w-8 place-items-center rounded-lg text-ink-800/50 hover:bg-sand-50 hover:text-teal-600 disabled:opacity-30"
+                        title={t("common.download")}
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            ) : (
+              <div className="grid place-items-center rounded-xl border border-dashed border-black/10 py-8 text-sm text-ink-800/40">
+                {t("doc.empty")}
+              </div>
+            )}
           </SectionCard>
 
           {/* payment history */}

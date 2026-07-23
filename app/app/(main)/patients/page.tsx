@@ -1,19 +1,87 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Search, Plus, Filter } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Search,
+  Plus,
+  Filter,
+  MoreVertical,
+  CalendarPlus,
+  MessageSquare,
+  BellRing,
+  Trash2,
+} from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill, Button } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/app/blocks";
 import PatientDrawer from "@/components/app/PatientDrawer";
 import { useData } from "@/components/app/DataProvider";
+import { useUI } from "@/components/app/ModalProvider";
 import { cn, mad } from "@/lib/utils";
+import type { Patient } from "@/lib/data";
 
 type FilterKey = "all" | "balance" | "upcoming";
+
+function RowMenu({ patient }: { patient: Patient }) {
+  const { t } = useApp();
+  const ui = useUI();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const items = [
+    { icon: CalendarPlus, label: t("act.book"), run: () => ui.openNewAppointment(patient.id) },
+    { icon: MessageSquare, label: t("act.message"), run: () => ui.openMessage(patient) },
+    { icon: BellRing, label: t("act.reminder"), run: () => ui.openMessage(patient, { reminder: true }) },
+    { icon: Trash2, label: t("act.delete"), run: () => ui.openDelete(patient), danger: true },
+  ];
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="grid h-9 w-9 place-items-center rounded-lg text-ink-800/40 transition-colors hover:bg-sand-100 hover:text-ink-900"
+        aria-label="actions"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+      {open && (
+        <div className="pop-in absolute end-0 top-full z-30 mt-1 w-52 overflow-hidden rounded-xl border border-black/5 bg-white p-1 shadow-float">
+          {items.map((it) => (
+            <button
+              key={it.label}
+              onClick={() => {
+                setOpen(false);
+                it.run();
+              }}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-start text-sm font-medium transition-colors",
+                it.danger
+                  ? "text-rose-600 hover:bg-rose-50"
+                  : "text-ink-800/80 hover:bg-sand-50 hover:text-ink-900"
+              )}
+            >
+              <it.icon className="h-4 w-4" />
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function PatientsPage() {
   const { t } = useApp();
   const { patients, patientById } = useData();
+  const ui = useUI();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<FilterKey>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -22,6 +90,7 @@ export default function PatientsPage() {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id");
     if (id && patientById(id)) setSelectedId(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {
@@ -50,7 +119,7 @@ export default function PatientsPage() {
         title={t("patients.title")}
         subtitle={`${patients.length} ${t("patients.count")}`}
         action={
-          <Button variant="primary">
+          <Button variant="primary" onClick={() => ui.openNewPatient()}>
             <Plus className="h-4 w-4" /> {t("patients.add")}
           </Button>
         }
@@ -84,21 +153,22 @@ export default function PatientsPage() {
       </div>
 
       {/* table */}
-      <div className="rise overflow-hidden rounded-2xl border border-black/5 bg-white shadow-card" style={{ animationDelay: "0.05s" }}>
+      <div className="rise overflow-visible rounded-2xl border border-black/5 bg-white shadow-card" style={{ animationDelay: "0.05s" }}>
         {/* head */}
-        <div className="hidden grid-cols-[2fr_1.3fr_1fr_1fr_1fr] gap-4 border-b border-black/5 bg-sand-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-ink-800/45 md:grid">
+        <div className="hidden grid-cols-[2fr_1.3fr_1fr_1fr_1fr_auto] gap-4 border-b border-black/5 bg-sand-50 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-ink-800/45 md:grid">
           <span>{t("col.name")}</span>
           <span>{t("col.phone")}</span>
           <span>{t("col.last")}</span>
           <span>{t("col.balance")}</span>
           <span>{t("col.status")}</span>
+          <span className="w-9" />
         </div>
         <ul className="divide-y divide-black/5">
           {filtered.map((p) => (
-            <li key={p.id}>
+            <li key={p.id} className="flex items-center gap-2 pe-3 transition-colors hover:bg-sand-50">
               <button
                 onClick={() => setSelectedId(p.id)}
-                className="grid w-full grid-cols-1 items-center gap-2 px-5 py-3 text-start transition-colors hover:bg-sand-50 md:grid-cols-[2fr_1.3fr_1fr_1fr_1fr] md:gap-4"
+                className="grid flex-1 grid-cols-1 items-center gap-2 px-5 py-3 text-start md:grid-cols-[2fr_1.3fr_1fr_1fr_1fr] md:gap-4"
               >
                 <span className="flex items-center gap-3">
                   <Avatar name={p.name} size={40} />
@@ -116,12 +186,13 @@ export default function PatientsPage() {
                   <Pill tone={p.status}>{t(`status.${p.status}`)}</Pill>
                 </span>
               </button>
+              <RowMenu patient={p} />
             </li>
           ))}
           {filtered.length === 0 && (
             <li className="grid place-items-center gap-2 py-16 text-sm text-ink-800/40">
               <Filter className="h-5 w-5" />
-              —
+              {t("search.none")}
             </li>
           )}
         </ul>

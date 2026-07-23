@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -19,11 +19,15 @@ import {
   Globe,
   Menu,
   X,
+  UserPlus,
+  CalendarPlus,
+  ChevronDown,
 } from "lucide-react";
 import { useApp, type Role } from "@/lib/i18n";
 import { Logo, Avatar } from "@/components/ui/primitives";
 import { useData } from "@/components/app/DataProvider";
-import { cn } from "@/lib/utils";
+import { useUI } from "@/components/app/ModalProvider";
+import { cn, mad } from "@/lib/utils";
 
 function DbStatus() {
   const { source, loading } = useData();
@@ -133,13 +137,150 @@ function SidebarFooter() {
   );
 }
 
+function SearchBox() {
+  const { t } = useApp();
+  const { patients } = useData();
+  const router = useRouter();
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const query = q.trim().toLowerCase();
+  const results = query
+    ? patients
+        .filter(
+          (p) =>
+            p.name.toLowerCase().includes(query) ||
+            p.phone.includes(query) ||
+            p.city.toLowerCase().includes(query) ||
+            p.tags.some((tag) => tag.toLowerCase().includes(query))
+        )
+        .slice(0, 6)
+    : [];
+
+  const go = (id: string) => {
+    router.push(`/app/patients?id=${id}`);
+    setQ("");
+    setOpen(false);
+  };
+
+  return (
+    <div ref={ref} className="relative flex-1 sm:max-w-sm">
+      <div className="flex items-center gap-2 rounded-xl border border-black/5 bg-sand-50 px-3 py-2 text-sm focus-within:border-teal-400 focus-within:bg-white">
+        <Search className="h-4 w-4 text-ink-800/40" />
+        <input
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder={t("app.search")}
+          className="w-full bg-transparent outline-none placeholder:text-ink-800/40"
+        />
+      </div>
+      {open && query && (
+        <div className="pop-in absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-xl border border-black/5 bg-white shadow-float">
+          {results.length ? (
+            <ul className="max-h-80 overflow-y-auto py-1">
+              {results.map((p) => (
+                <li key={p.id}>
+                  <button
+                    onClick={() => go(p.id)}
+                    className="flex w-full items-center gap-3 px-3 py-2 text-start transition-colors hover:bg-sand-50"
+                  >
+                    <Avatar name={p.name} size={34} />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-ink-900">{p.name}</span>
+                      <span className="block truncate text-xs text-ink-800/50">{p.city} · {p.phone}</span>
+                    </span>
+                    {p.balance > 0 && (
+                      <span className="shrink-0 text-xs font-semibold text-amber-600">{mad(p.balance)} MAD</span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="px-4 py-6 text-center text-sm text-ink-800/40">{t("search.none")}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewMenu() {
+  const { t, role } = useApp();
+  const ui = useUI();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const items = [
+    { icon: UserPlus, label: t("new.patient"), run: () => ui.openNewPatient(), roles: ["dentist", "secretary"] },
+    { icon: CalendarPlus, label: t("new.appointment"), run: () => ui.openNewAppointment(), roles: ["dentist", "secretary"] },
+    { icon: FileText, label: t("new.plan"), run: () => ui.openNewPlan(), roles: ["dentist"] },
+    { icon: Wallet, label: t("new.payment"), run: () => ui.openPayment(), roles: ["dentist", "secretary"] },
+    { icon: Images, label: t("new.document"), run: () => ui.openNewDocument(), roles: ["dentist"] },
+  ].filter((i) => i.roles.includes(role));
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 px-3.5 py-2 text-sm font-semibold text-white shadow-glow transition-all hover:brightness-105 active:scale-95"
+      >
+        <Plus className="h-4 w-4" />
+        <span className="hidden sm:inline">{t("app.new")}</span>
+        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div className="pop-in absolute end-0 top-full z-50 mt-2 w-60 overflow-hidden rounded-xl border border-black/5 bg-white p-1 shadow-float">
+          {items.map((it) => (
+            <button
+              key={it.label}
+              onClick={() => {
+                setOpen(false);
+                it.run();
+              }}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-start text-sm font-medium text-ink-800/80 transition-colors hover:bg-sand-50 hover:text-ink-900"
+            >
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-teal-50 text-teal-600">
+                <it.icon className="h-4 w-4" />
+              </span>
+              {it.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Topbar({ onMenu }: { onMenu: () => void }) {
-  const { t, toggleLang, lang } = useApp();
+  const { toggleLang, lang, role } = useApp();
   const today = new Intl.DateTimeFormat(lang === "ar" ? "ar-MA" : "fr-MA", {
     weekday: "long",
     day: "numeric",
     month: "long",
   }).format(new Date(2026, 6, 23));
+  const canCreate = role === "dentist" || role === "secretary";
 
   return (
     <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-black/5 bg-white/80 px-4 py-3 backdrop-blur-md lg:px-8">
@@ -147,10 +288,11 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
         <Menu className="h-5 w-5" />
       </button>
 
-      <div className="flex flex-1 items-center gap-2 rounded-xl border border-black/5 bg-sand-50 px-3 py-2 text-sm text-ink-800/50 sm:max-w-sm">
-        <Search className="h-4 w-4" />
-        <span className="truncate">{t("app.search")}</span>
-      </div>
+      {canCreate ? (
+        <SearchBox />
+      ) : (
+        <div className="flex-1" />
+      )}
 
       <div className="hidden items-center gap-1.5 rounded-lg bg-sand-50 px-3 py-1.5 text-xs font-medium text-ink-800/60 md:flex">
         <CalendarDays className="h-3.5 w-3.5 text-teal-500" />
@@ -170,10 +312,7 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
         <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white" />
       </button>
 
-      <button className="hidden items-center gap-1.5 rounded-xl bg-gradient-to-br from-teal-400 to-teal-600 px-3.5 py-2 text-sm font-semibold text-white shadow-glow transition-all hover:brightness-105 active:scale-95 sm:inline-flex">
-        <Plus className="h-4 w-4" />
-        {t("app.new")}
-      </button>
+      {canCreate && <NewMenu />}
     </header>
   );
 }

@@ -30,6 +30,7 @@ export interface Appointment {
   id: string;
   patientId: string;
   patient: string;
+  day: string; // ISO date "YYYY-MM-DD"
   time: string; // HH:MM
   duration: number; // minutes
   act: string;
@@ -224,6 +225,7 @@ export const todaysAppointments: Appointment[] = [
     id: "a1",
     patientId: "p5",
     patient: "Nawal Fassi",
+    day: "2026-07-23",
     time: "09:00",
     duration: 30,
     act: "Détartrage",
@@ -235,6 +237,7 @@ export const todaysAppointments: Appointment[] = [
     id: "a2",
     patientId: "p3",
     patient: "Salma Cherkaoui",
+    day: "2026-07-23",
     time: "09:45",
     duration: 45,
     act: "Blanchiment — séance 1",
@@ -246,6 +249,7 @@ export const todaysAppointments: Appointment[] = [
     id: "a3",
     patientId: "p2",
     patient: "Mehdi Benali",
+    day: "2026-07-23",
     time: "10:45",
     duration: 60,
     act: "Pose implant (pilier)",
@@ -257,6 +261,7 @@ export const todaysAppointments: Appointment[] = [
     id: "a4",
     patientId: "p1",
     patient: "Yasmine Alaoui",
+    day: "2026-07-23",
     time: "11:30",
     duration: 30,
     act: "Contrôle orthodontie",
@@ -268,6 +273,7 @@ export const todaysAppointments: Appointment[] = [
     id: "a5",
     patientId: "p9",
     patient: "Hajar Bouazza",
+    day: "2026-07-23",
     time: "14:00",
     duration: 30,
     act: "Consultation",
@@ -279,6 +285,7 @@ export const todaysAppointments: Appointment[] = [
     id: "a6",
     patientId: "p10",
     patient: "Youssef Berrada",
+    day: "2026-07-23",
     time: "15:00",
     duration: 60,
     act: "Empreinte prothèse",
@@ -290,6 +297,7 @@ export const todaysAppointments: Appointment[] = [
     id: "a7",
     patientId: "p6",
     patient: "Karim Tazi",
+    day: "2026-07-23",
     time: "16:15",
     duration: 30,
     act: "Contrôle annuel",
@@ -404,3 +412,50 @@ export const kpis = {
 
 // Calendar grid slots for the week view
 export const calendarSlots = todaysAppointments;
+
+// ===== Documents (patient-linked imaging / files vault) =====
+export type DocCategory = "xray" | "photo" | "doc";
+export interface DocFile {
+  name: string;
+  kind: "image" | "pdf" | "file";
+  dataUrl?: string; // in-session preview / persisted small asset
+}
+export interface ClinicDocument {
+  id: string;
+  patientId: string;
+  patient: string;
+  title: string;
+  category: DocCategory;
+  files: DocFile[];
+  createdAt: string;
+}
+
+export const documents: ClinicDocument[] = [
+  { id: "d1", patientId: "p10", patient: "Youssef Berrada", title: "Radio panoramique — implant 16", category: "xray", createdAt: "30 Jun 2026", files: [{ name: "panoramique-16.jpg", kind: "image" }] },
+  { id: "d2", patientId: "p10", patient: "Youssef Berrada", title: "Consentement — implant", category: "doc", createdAt: "30 Jun 2026", files: [{ name: "consentement-implant.pdf", kind: "pdf" }] },
+  { id: "d3", patientId: "p2", patient: "Mehdi Benali", title: "Rétro-alvéolaire 16", category: "xray", createdAt: "02 Jul 2026", files: [{ name: "retro-16.jpg", kind: "image" }] },
+  { id: "d4", patientId: "p3", patient: "Salma Cherkaoui", title: "Blanchiment — avant / après", category: "photo", createdAt: "20 Jul 2026", files: [{ name: "avant.jpg", kind: "image" }, { name: "apres.jpg", kind: "image" }] },
+  { id: "d5", patientId: "p3", patient: "Salma Cherkaoui", title: "Radio panoramique", category: "xray", createdAt: "18 May 2026", files: [{ name: "panoramique.jpg", kind: "image" }] },
+  { id: "d6", patientId: "p1", patient: "Yasmine Alaoui", title: "Facette 21 — avant / après", category: "photo", createdAt: "12 Jun 2026", files: [{ name: "facette-avant.jpg", kind: "image" }, { name: "facette-apres.jpg", kind: "image" }] },
+  { id: "d7", patientId: "p1", patient: "Yasmine Alaoui", title: "Devis orthodontie", category: "doc", createdAt: "12 Jun 2026", files: [{ name: "devis-orthodontie.pdf", kind: "pdf" }] },
+  { id: "d8", patientId: "p5", patient: "Nawal Fassi", title: "Ordonnance — amoxicilline", category: "doc", createdAt: "09 Jul 2026", files: [{ name: "ordonnance-amoxicilline.pdf", kind: "pdf" }] },
+];
+
+// ===== Live-analytics helpers =====
+// Bucket a treatment act into a revenue category (drives the live acts donut).
+export const ACT_CATEGORIES: { key: string; label: string; color: string; re: RegExp }[] = [
+  { key: "ortho", label: "Orthodontie", color: "#14a89a", re: /ortho|bague|gouttière|aligneur/i },
+  { key: "implant", label: "Implants / Prothèse", color: "#0f6e68", re: /implant|prothèse|couronne|pilier|bridge|pilier/i },
+  { key: "esthetique", label: "Esthétique", color: "#ffa02e", re: /blanchiment|facette|esthé/i },
+  { key: "detartrage", label: "Détartrage", color: "#96ebe0", re: /détartrage|contrôle|scaling/i },
+  { key: "conservateur", label: "Soins conservateurs", color: "#2ec4b6", re: /.*/ },
+];
+
+export function categorizeAct(act: string) {
+  return ACT_CATEGORIES.find((c) => c.re.test(act)) ?? ACT_CATEGORIES[ACT_CATEGORIES.length - 1];
+}
+
+// The clinic "today" the whole demo is anchored to.
+export const TODAY_LABEL = "23 Jul";
+export const TODAY_FULL = "23 Jul 2026";
+export const TODAY_ISO = "2026-07-23";

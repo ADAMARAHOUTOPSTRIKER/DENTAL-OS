@@ -17,12 +17,15 @@ import { Kpi, Avatar, Pill } from "@/components/ui/primitives";
 import { PageHeader, SectionCard, AgendaList, RecallList } from "@/components/app/blocks";
 import { RevenueArea, ActsDonut } from "@/components/app/charts";
 import { useData } from "@/components/app/DataProvider";
-import { kpis } from "@/lib/data";
+import { TODAY_ISO } from "@/lib/data";
 import { mad } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { t, role, lang } = useApp();
-  const { patients, appointments: todaysAppointments, recalls } = useData();
+  const { patients, appointments, recalls, stats } = useData();
+  const todaysAppointments = appointments
+    .filter((a) => a.day === TODAY_ISO)
+    .sort((a, b) => a.time.localeCompare(b.time));
   const router = useRouter();
   const isDentist = role === "dentist";
   const name = isDentist ? "Dr. Bennani" : "Imane";
@@ -43,17 +46,17 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {isDentist ? (
           <>
-            <Kpi index={0} label={t("kpi.revenue")} value={mad(kpis.revenue)} suffix={t("common.mad")} delta={kpis.revenueDelta} icon={<Wallet className="h-4 w-4" />} />
-            <Kpi index={1} label={t("kpi.appointments")} value={String(kpis.appointments)} delta={kpis.appointmentsDelta} icon={<CalendarDays className="h-4 w-4" />} />
-            <Kpi index={2} label={t("kpi.noshow")} value={`${kpis.noShow}%`} delta={kpis.noShowDelta} icon={<UserX className="h-4 w-4" />} accent="amber" />
-            <Kpi index={3} label={t("kpi.acceptance")} value={`${kpis.acceptance}%`} delta={kpis.acceptanceDelta} icon={<FileCheck className="h-4 w-4" />} />
+            <Kpi index={0} label={t("kpi.revenue")} value={mad(stats.collected)} suffix={t("common.mad")} delta={stats.revenueDelta} icon={<Wallet className="h-4 w-4" />} />
+            <Kpi index={1} label={t("kpi.appointments")} value={String(stats.appointmentsCount)} delta={stats.appointmentsDelta} icon={<CalendarDays className="h-4 w-4" />} />
+            <Kpi index={2} label={t("kpi.noshow")} value={`${stats.noShow}%`} delta={stats.noShowDelta} icon={<UserX className="h-4 w-4" />} accent="amber" />
+            <Kpi index={3} label={t("kpi.acceptance")} value={`${stats.acceptance}%`} delta={stats.acceptanceDelta} icon={<FileCheck className="h-4 w-4" />} />
           </>
         ) : (
           <>
             <Kpi index={0} label={t("kpi.appointments")} value={String(todaysAppointments.length)} suffix={t("app.today")} icon={<CalendarDays className="h-4 w-4" />} />
-            <Kpi index={1} label={t("kpi.due")} value={mad(kpis.dueToday)} suffix={t("common.mad")} icon={<Coins className="h-4 w-4" />} accent="amber" />
-            <Kpi index={2} label={t("kpi.pending")} value={mad(kpis.pendingPayments)} suffix={t("common.mad")} icon={<Clock className="h-4 w-4" />} accent="amber" />
-            <Kpi index={3} label={t("kpi.active")} value={mad(kpis.activePatients)} icon={<Users className="h-4 w-4" />} />
+            <Kpi index={1} label={t("kpi.due")} value={mad(stats.dueToday)} suffix={t("common.mad")} icon={<Coins className="h-4 w-4" />} accent="amber" />
+            <Kpi index={2} label={t("kpi.pending")} value={mad(stats.outstanding)} suffix={t("common.mad")} icon={<Clock className="h-4 w-4" />} accent="amber" />
+            <Kpi index={3} label={t("kpi.active")} value={mad(stats.activePatients)} icon={<Users className="h-4 w-4" />} />
           </>
         )}
       </div>
@@ -75,7 +78,7 @@ export default function DashboardPage() {
 
           {isDentist && (
             <SectionCard title={t("sec.revenuetrend")} delay={0.1}>
-              <RevenueArea />
+              <RevenueArea data={stats.revenueTrend} />
             </SectionCard>
           )}
         </div>
@@ -91,7 +94,7 @@ export default function DashboardPage() {
 
           {isDentist ? (
             <SectionCard title={t("sec.actsmix")} delay={0.12}>
-              <ActsDonut />
+              <ActsDonut data={stats.actsMix} />
             </SectionCard>
           ) : (
             <SectionCard title={t("sec.recentpatients")} delay={0.12}>

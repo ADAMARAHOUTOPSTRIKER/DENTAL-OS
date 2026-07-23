@@ -5,11 +5,13 @@ import {
   treatmentPlans as seedPlans,
   payments as seedPayments,
   recalls as seedRecalls,
+  documents as seedDocuments,
   type Patient,
   type Appointment,
   type TreatmentPlan,
   type Payment,
   type Recall,
+  type ClinicDocument,
 } from "./data";
 
 export interface ClinicData {
@@ -18,6 +20,7 @@ export interface ClinicData {
   treatmentPlans: TreatmentPlan[];
   payments: Payment[];
   recalls: Recall[];
+  documents: ClinicDocument[];
 }
 
 // The seed export doubles as the fallback when Supabase is unreachable.
@@ -27,22 +30,24 @@ export const SEED: ClinicData = {
   treatmentPlans: seedPlans,
   payments: seedPayments,
   recalls: seedRecalls,
+  documents: seedDocuments,
 };
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export async function fetchClinicData(): Promise<ClinicData> {
   if (!supabase) return SEED;
   try {
-    const [pRes, aRes, plRes, plLineRes, payRes, rRes] = await Promise.all([
+    const [pRes, aRes, plRes, plLineRes, payRes, rRes, dRes] = await Promise.all([
       supabase.from("patients").select("*").order("id"),
       supabase.from("appointments").select("*").order("time"),
       supabase.from("treatment_plans").select("*").order("id"),
       supabase.from("treatment_plan_lines").select("*").order("position"),
       supabase.from("payments").select("*").order("id"),
       supabase.from("recalls").select("*").order("id"),
+      supabase.from("documents").select("*").order("id"),
     ]);
 
-    if (pRes.error || aRes.error || plRes.error || plLineRes.error || payRes.error || rRes.error) {
+    if (pRes.error || aRes.error || plRes.error || plLineRes.error || payRes.error || rRes.error || dRes.error) {
       return SEED;
     }
 
@@ -66,6 +71,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       id: r.id,
       patientId: r.patient_id,
       patient: r.patient,
+      day: r.day ?? "2026-07-23",
       time: r.time,
       duration: r.duration,
       act: r.act,
@@ -108,6 +114,16 @@ export async function fetchClinicData(): Promise<ClinicData> {
       reminderSent: r.reminder_sent,
     }));
 
+    const documents: ClinicDocument[] = (dRes.data ?? []).map((r: any) => ({
+      id: r.id,
+      patientId: r.patient_id,
+      patient: r.patient,
+      title: r.title,
+      category: r.category,
+      files: Array.isArray(r.files) ? r.files : [],
+      createdAt: r.created_at,
+    }));
+
     // If a table came back empty for any reason, prefer seed for that slice.
     return {
       patients: patients.length ? patients : SEED.patients,
@@ -115,6 +131,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       treatmentPlans: treatmentPlans.length ? treatmentPlans : SEED.treatmentPlans,
       payments: payments.length ? payments : SEED.payments,
       recalls: recalls.length ? recalls : SEED.recalls,
+      documents: documents.length ? documents : SEED.documents,
     };
   } catch {
     return SEED;
