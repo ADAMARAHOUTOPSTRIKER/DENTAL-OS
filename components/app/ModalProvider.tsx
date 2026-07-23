@@ -7,6 +7,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
   UserPlus,
@@ -21,17 +22,20 @@ import {
   Upload,
   X as XIcon,
   AlertTriangle,
+  PenLine,
+  Eraser,
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { useData } from "@/components/app/DataProvider";
 import { Button, Avatar } from "@/components/ui/primitives";
 import { Modal, Field, Input, Select, Textarea } from "@/components/app/modals/ui";
 import { toDocFile } from "@/lib/files";
-import { generateDevisPDF } from "@/lib/pdf";
+import { generateDevisPDF, generateConsentPDF } from "@/lib/pdf";
 import { cn, mad, waLink, isoToShort, isoToLabel } from "@/lib/utils";
 import {
   PRACTITIONERS,
   TODAY_ISO,
+  TODAY_FULL,
   type Patient,
   type Appointment,
   type PlanLine,
@@ -51,6 +55,7 @@ interface UICtx {
   openPreRegister: () => void;
   openReschedule: (appointment: Appointment) => void;
   openPatientBooking: (patientId: string, prefill?: { act?: string }) => void;
+  openSignature: (patientId: string, opts: { title: string; lines?: { act: string; price: number }[] }) => void;
   openNewAppointment: (patientId?: string) => void;
   openNewPlan: (patientId?: string) => void;
   openNewDocument: (prefill?: { patientId?: string; docId?: string }) => void;
@@ -74,6 +79,7 @@ type Modal =
   | { kind: "patient"; intake?: boolean }
   | { kind: "reschedule"; appointment: Appointment }
   | { kind: "patientBooking"; patientId: string; act?: string }
+  | { kind: "signature"; patientId: string; title: string; lines?: { act: string; price: number }[] }
   | { kind: "appointment"; patientId?: string }
   | { kind: "plan"; patientId?: string }
   | { kind: "document"; patientId?: string; docId?: string }
@@ -141,6 +147,8 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       openReschedule: (appointment) => setModal({ kind: "reschedule", appointment }),
       openPatientBooking: (patientId, prefill) =>
         setModal({ kind: "patientBooking", patientId, act: prefill?.act }),
+      openSignature: (patientId, opts) =>
+        setModal({ kind: "signature", patientId, title: opts.title, lines: opts.lines }),
       openNewAppointment: (patientId) => setModal({ kind: "appointment", patientId }),
       openNewPlan: (patientId) => setModal({ kind: "plan", patientId }),
       openNewDocument: (prefill) => setModal({ kind: "document", ...prefill }),
@@ -173,6 +181,9 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       )}
       {modal?.kind === "patientBooking" && (
         <PatientBookingModal onClose={close} toast={toast} patientId={modal.patientId} prefillAct={modal.act} />
+      )}
+      {modal?.kind === "signature" && (
+        <SignatureModal onClose={close} toast={toast} patientId={modal.patientId} title={modal.title} lines={modal.lines} />
       )}
       {modal?.kind === "appointment" && (
         <AppointmentModal onClose={close} toast={toast} prefill={modal.patientId} />
@@ -1120,6 +1131,104 @@ function PatientBookingModal({
           </Select>
         </Field>
         <p className="text-xs text-ink-800/45">{t("book.note")}</p>
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* E-signature of a consent                                            */
+/* ------------------------------------------------------------------ */
+
+function SignatureModal({
+  onClose, toast, patientId, title, lines,
+}: Common & { patientId: string; title: string; lines?: { act: string; price: number }[] }) {
+  const { t } = useApp();
+  const { patientById, addDocument } = useData();
+  const me = patientById(patientId);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawing = useRef(false);
+  const [hasInk, setHasInk] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const g2d = () => {
+    const g = canvasRef.current!.getContext("2d")!;
+    g.lineWidth = 2.4; g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = "#08222e";
+    return g;
+  };
+  const point = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    const c = canvasRef.current!;
+    const r = c.getBoundingClientRect();
+    return { x: ((e.clientX - r.left) / r.width) * c.width, y: ((e.clientY - r.top) / r.height) * c.height };
+  };
+  const down = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    canvasRef.current!.setPointerCapture(e.pointerId);
+    drawing.current = true;
+    const g = g2d(); const p = point(e); g.beginPath(); g.moveTo(p.x, p.y);
+  };
+  const move = (e: ReactPointerEvent<HTMLCanvasElement>) => {
+    if (!drawing.current) return;
+    const g = g2d(); const p = point(e); g.lineTo(p.x, p.y); g.stroke();
+    if (!hasInk) setHasInk(true);
+  };
+  const up = () => { drawing.current = false; };
+  const clear = () => {
+    const c = canvasRef.current;
+    if (c) c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
+    setHasInk(false);
+  };
+  const sign = async () => {
+    if (!hasInk || !me || busy) return;
+    setBusy(true);
+    const sig = canvasRef.current!.toDataURL("image/png");
+    const { dataUrl } = generateConsentPDF(me, { title, signatureDataUrl: sig, signedAt: TODAY_FULL, lines });
+    await addDocument({
+      patientId, patient: me.name,
+      title: `${t("consent.signed")} — ${title}`, category: "doc",
+      files: [{ name: "consentement-signe.pdf", kind: "pdf", dataUrl }],
+    });
+    toast(t("sign.done"));
+    onClose();
+  };
+
+  return (
+    <Modal
+      title={t("sign.title")}
+      subtitle={title}
+      icon={<PenLine className="h-5 w-5" />}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" onClick={sign} disabled={!hasInk || busy}>
+            <Check className="h-4 w-4" /> {t("sign.confirm")}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <p className="text-sm text-ink-800/60">{t("sign.sub")}</p>
+        <div className="relative overflow-hidden rounded-xl border-2 border-dashed border-black/15 bg-white">
+          <canvas
+            ref={canvasRef}
+            width={520}
+            height={190}
+            onPointerDown={down}
+            onPointerMove={move}
+            onPointerUp={up}
+            onPointerLeave={up}
+            className="h-[190px] w-full touch-none"
+          />
+          {!hasInk && (
+            <span className="pointer-events-none absolute inset-0 grid place-items-center text-sm text-ink-800/30">
+              {t("sign.placeholder")}
+            </span>
+          )}
+        </div>
+        <button onClick={clear} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-ink-800/60 hover:bg-ink-900/5">
+          <Eraser className="h-3.5 w-3.5" /> {t("sign.clear")}
+        </button>
       </div>
     </Modal>
   );

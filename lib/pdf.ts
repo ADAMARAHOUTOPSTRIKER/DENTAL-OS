@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import type { Patient, TreatmentPlan, Payment } from "./data";
+import type { Patient, TreatmentPlan, Payment, ClinicDocument } from "./data";
 
 const TEAL: [number, number, number] = [46, 196, 182];
 const INK: [number, number, number] = [8, 34, 46];
@@ -303,4 +303,207 @@ export function generateReceiptPDF(
   const blob = doc.output("blob");
   const dataUrl = doc.output("datauristring");
   return { filename, dataUrl, blob };
+}
+
+function header(doc: jsPDF, W: number, clinic: string) {
+  doc.setFillColor(...INK);
+  doc.rect(0, 0, W, 34, "F");
+  doc.setFillColor(...TEAL);
+  doc.rect(0, 34, W, 1.6, "F");
+  doc.setFillColor(...TEAL);
+  doc.roundedRect(14, 10, 14, 14, 3, 3, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("D", 21, 19.6, { align: "center" });
+  doc.setFontSize(15);
+  doc.text(clinic, 32, 16);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(190, 205, 210);
+  doc.text("Casablanca, Maroc  ·  +212 5 22 00 00 00  ·  contact@dentalos.ma", 32, 22);
+}
+
+function patientBox(doc: jsPDF, W: number, y: number, patient: Patient | undefined, label = "PATIENT") {
+  doc.setDrawColor(230, 234, 236);
+  doc.setFillColor(250, 251, 251);
+  doc.roundedRect(14, y, W - 28, 22, 2.5, 2.5, "FD");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTE);
+  doc.text(label, 19, y + 7);
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(...INK);
+  doc.text(patient?.name ?? "—", 19, y + 14);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...MUTE);
+  const meta = [patient?.phone, patient?.city, patient ? `${patient.age} ans` : null].filter(Boolean).join("   ·   ");
+  if (meta) doc.text(meta, 19, y + 19);
+}
+
+/** Signed consent form embedding the patient's captured signature. */
+export function generateConsentPDF(
+  patient: Patient | undefined,
+  opts: { title: string; signatureDataUrl: string; signedAt: string; lines?: { act: string; price: number }[] }
+): DevisResult {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = doc.internal.pageSize.getWidth();
+  const clinic = "Cabinet Dentaire DentalOS";
+  header(doc, W, clinic);
+
+  doc.setTextColor(...INK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("CONSENTEMENT AUX SOINS", 14, 50);
+
+  patientBox(doc, W, 58, patient);
+
+  let y = 92;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(10);
+  doc.setTextColor(...INK);
+  doc.text(
+    `Je soussigné(e) ${patient?.name ?? ""}, reconnais avoir été informé(e) de la nature des soins proposés (${opts.title}), de leur déroulement et de leur coût, et donne mon consentement libre et éclairé pour leur réalisation.`,
+    14, y, { maxWidth: W - 28 }
+  );
+  y += 20;
+
+  if (opts.lines?.length) {
+    const total = opts.lines.reduce((s, l) => s + l.price, 0);
+    doc.setFillColor(...INK);
+    doc.roundedRect(14, y - 6, W - 28, 9, 1.5, 1.5, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("ACTE", 19, y);
+    doc.text("PRIX (MAD)", W - 19, y, { align: "right" });
+    y += 10;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    opts.lines.forEach((l) => {
+      doc.setTextColor(...INK);
+      doc.text(l.act, 19, y, { maxWidth: W - 60 });
+      doc.text(fmtMad(l.price), W - 19, y, { align: "right" });
+      y += 8;
+    });
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...TEAL);
+    doc.text(`TOTAL : ${fmtMad(total)} MAD`, W - 19, y + 2, { align: "right" });
+    y += 14;
+  }
+
+  // Signature block
+  y = Math.max(y, 200);
+  doc.setDrawColor(230, 234, 236);
+  doc.setFillColor(250, 251, 251);
+  doc.roundedRect(W - 94, y, 80, 42, 2.5, 2.5, "FD");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...MUTE);
+  doc.text("Signature du patient", W - 90, y + 6);
+  try {
+    doc.addImage(opts.signatureDataUrl, "PNG", W - 92, y + 8, 76, 26);
+  } catch {
+    /* ignore bad image */
+  }
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTE);
+  doc.text(`Signé le ${opts.signedAt}`, W - 90, y + 39);
+
+  const fy = doc.internal.pageSize.getHeight() - 12;
+  doc.setDrawColor(235, 238, 239);
+  doc.line(14, fy - 4, W - 14, fy - 4);
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTE);
+  doc.text("DentalOS — Le système d'exploitation de votre cabinet dentaire", W / 2, fy, { align: "center" });
+
+  const filename = `Consentement-signe-${(patient?.name ?? "").replace(/\s+/g, "-")}.pdf`;
+  return { filename, blob: doc.output("blob"), dataUrl: doc.output("datauristring") };
+}
+
+/** Full patient dossier export — info, plan, payments, documents list. */
+export function generateDossierPDF(
+  patient: Patient,
+  plan: TreatmentPlan | undefined,
+  payments: Payment[],
+  documents: ClinicDocument[]
+): DevisResult {
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
+  const W = doc.internal.pageSize.getWidth();
+  header(doc, W, "Cabinet Dentaire DentalOS");
+
+  doc.setTextColor(...INK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(20);
+  doc.text("DOSSIER PATIENT", 14, 50);
+
+  patientBox(doc, W, 58, patient);
+
+  let y = 90;
+  const section = (t: string) => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(...TEAL);
+    doc.text(t, 14, y);
+    y += 6;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...INK);
+  };
+
+  if (patient.alerts.length) {
+    section("Alertes médicales");
+    doc.text(patient.alerts.join("  ·  "), 14, y, { maxWidth: W - 28 });
+    y += 10;
+  }
+
+  if (plan) {
+    section("Plan de traitement");
+    plan.lines.forEach((l) => {
+      doc.text(`• ${l.act}`, 16, y);
+      doc.text(fmtMad(l.price), W - 19, y, { align: "right" });
+      y += 6;
+    });
+    doc.setFont("helvetica", "bold");
+    doc.text(`Total : ${fmtMad(plan.lines.reduce((s, l) => s + l.price, 0))} MAD`, W - 19, y + 1, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    y += 12;
+  }
+
+  section("Paiements");
+  if (payments.length) {
+    payments.forEach((p) => {
+      doc.text(`• ${p.date} — ${p.act}`, 16, y);
+      doc.text(`${fmtMad(p.amount)} MAD`, W - 19, y, { align: "right" });
+      y += 6;
+    });
+  } else {
+    doc.text("Aucun paiement enregistré.", 16, y);
+    y += 6;
+  }
+  doc.setFont("helvetica", "bold");
+  doc.text(`Solde : ${fmtMad(patient.balance)} MAD`, W - 19, y + 1, { align: "right" });
+  doc.setFont("helvetica", "normal");
+  y += 12;
+
+  section("Documents");
+  if (documents.length) {
+    documents.forEach((d) => {
+      doc.text(`• ${d.title} (${d.files.length})`, 16, y, { maxWidth: W - 30 });
+      y += 6;
+    });
+  } else {
+    doc.text("Aucun document.", 16, y);
+    y += 6;
+  }
+
+  const fy = doc.internal.pageSize.getHeight() - 12;
+  doc.setDrawColor(235, 238, 239);
+  doc.line(14, fy - 4, W - 14, fy - 4);
+  doc.setFontSize(8);
+  doc.setTextColor(...MUTE);
+  doc.text("Document généré depuis le portail patient — DentalOS", W / 2, fy, { align: "center" });
+
+  const filename = `Dossier-${patient.name.replace(/\s+/g, "-")}.pdf`;
+  return { filename, blob: doc.output("blob"), dataUrl: doc.output("datauristring") };
 }

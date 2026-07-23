@@ -67,3 +67,39 @@ export function waLink(phone: string, text: string) {
     ? `https://wa.me/${digits}?text=${msg}`
     : `https://wa.me/?text=${msg}`;
 }
+
+// ---------- Calendar (.ics) ----------
+export function buildICS(o: {
+  uid: string;
+  title: string;
+  day: string; // ISO YYYY-MM-DD
+  time: string; // HH:MM
+  durationMin: number;
+  location?: string;
+  description?: string;
+}) {
+  const [h, m] = o.time.split(":").map(Number);
+  const d = o.day.replace(/-/g, "");
+  const start = `${d}T${String(h).padStart(2, "0")}${String(m).padStart(2, "0")}00`;
+  const endTot = h * 60 + m + o.durationMin;
+  const eh = Math.floor(endTot / 60) % 24;
+  const em = endTot % 60;
+  const end = `${d}T${String(eh).padStart(2, "0")}${String(em).padStart(2, "0")}00`;
+  const esc = (s: string) => s.replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
+  return [
+    "BEGIN:VCALENDAR",
+    "VERSION:2.0",
+    "PRODID:-//DentalOS//Portail Patient//FR",
+    "BEGIN:VEVENT",
+    `UID:${o.uid}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${esc(o.title)}`,
+    o.location ? `LOCATION:${esc(o.location)}` : "",
+    o.description ? `DESCRIPTION:${esc(o.description)}` : "",
+    "END:VEVENT",
+    "END:VCALENDAR",
+  ]
+    .filter(Boolean)
+    .join("\r\n");
+}

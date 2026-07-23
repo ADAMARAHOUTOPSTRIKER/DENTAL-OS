@@ -363,6 +363,42 @@ export const DICT: Dict = {
   "portal.missed.sub": { fr: "Souhaitez-vous le reprogrammer ?", ar: "هل تودّون إعادة جدولته؟" },
   "portal.missed.cta": { fr: "Reprendre rendez-vous", ar: "إعادة الحجز" },
 
+  // ===== Portal Tier 3 =====
+  // Compte famille
+  "portal.family": { fr: "Ma famille", ar: "عائلتي" },
+  "portal.member.you": { fr: "Vous", ar: "أنت" },
+  "portal.member.child": { fr: "Enfant", ar: "طفل" },
+  "portal.household": { fr: "Vue famille", ar: "نظرة العائلة" },
+  "portal.household.balance": { fr: "Solde du foyer", ar: "رصيد العائلة" },
+  "portal.household.nextrdv": { fr: "Prochain RDV", ar: "الموعد القادم" },
+  "portal.household.noappt": { fr: "Aucun RDV à venir", ar: "لا موعد قادم" },
+  "portal.household.recallsdue": { fr: "rappel(s)", ar: "تذكير" },
+  "portal.viewing": { fr: "Espace de", ar: "مساحة" },
+
+  // E-signature
+  "portal.tosign": { fr: "Documents à signer", ar: "وثائق للتوقيع" },
+  "portal.tosign.empty": { fr: "Aucun document en attente de signature.", ar: "لا وثائق بانتظار التوقيع." },
+  "portal.sign.cta": { fr: "Signer", ar: "توقيع" },
+  "sign.title": { fr: "Signer le consentement", ar: "توقيع الموافقة" },
+  "sign.sub": { fr: "Dessinez votre signature dans le cadre ci-dessous.", ar: "ارسم توقيعك في الإطار أدناه." },
+  "sign.placeholder": { fr: "Signez ici", ar: "وقّع هنا" },
+  "sign.clear": { fr: "Effacer", ar: "مسح" },
+  "sign.confirm": { fr: "Signer le document", ar: "توقيع الوثيقة" },
+  "sign.done": { fr: "Document signé — classé dans votre coffre", ar: "تم توقيع الوثيقة — حُفظت في خزنتك" },
+  "consent.signed": { fr: "Consentement signé", ar: "موافقة موقّعة" },
+
+  // Export dossier
+  "portal.export": { fr: "Exporter mon dossier", ar: "تصدير ملفي" },
+  "portal.export.done": { fr: "Dossier exporté (PDF)", ar: "تم تصدير الملف (PDF)" },
+
+  // Agenda .ics
+  "portal.addcal": { fr: "Ajouter à mon calendrier", ar: "إضافة إلى تقويمي" },
+  "portal.addcal.done": { fr: "Fichier calendrier téléchargé", ar: "تم تحميل ملف التقويم" },
+
+  // Renouvellement d'ordonnance
+  "portal.renew": { fr: "Demander un renouvellement", ar: "طلب تجديد" },
+  "portal.renew.tmpl": { fr: "Bonjour, je suis {name}. Je souhaite renouveler mon ordonnance : {doc}.", ar: "مرحبًا، أنا {name}. أودّ تجديد وصفتي الطبية: {doc}." },
+
   "common.mad": { fr: "MAD", ar: "درهم" },
   "common.close": { fr: "Fermer", ar: "إغلاق" },
   "common.save": { fr: "Enregistrer", ar: "حفظ" },
