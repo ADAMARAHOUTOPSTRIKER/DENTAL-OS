@@ -17,10 +17,11 @@ import {
   Trash2,
   ScanLine,
   ImageIcon,
+  KeyRound,
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill, Button } from "@/components/ui/primitives";
-import { cn, mad } from "@/lib/utils";
+import { cn, mad, waLink, suggestLogin, genPassword } from "@/lib/utils";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
 import { type Patient, type ClinicDocument, type DocFile } from "@/lib/data";
@@ -57,9 +58,19 @@ export default function PatientDrawer({
   onClose: () => void;
 }) {
   const { t } = useApp();
-  const { treatmentPlans, payments, documents, patientById } = useData();
+  const { treatmentPlans, payments, documents, patientById, setPatientCredentials } = useData();
   const ui = useUI();
   const [tab, setTab] = useState("overview");
+
+  const setAccess = (login: string) => setPatientCredentials(patient.id, { login, password: genPassword() });
+  const shareCreds = () => {
+    const text = t("cred.tmpl")
+      .replace("{name}", patient.name.split(" ")[0])
+      .replace("{clinic}", t("msg.clinic"))
+      .replace("{login}", patient.portalLogin ?? "")
+      .replace("{password}", patient.portalPassword ?? "");
+    window.open(waLink(patient.phone, text), "_blank", "noopener,noreferrer");
+  };
 
   // Measured sliding tab indicator.
   const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -188,6 +199,38 @@ export default function PatientDrawer({
                   <Button variant="outline" className="mt-3 w-full" onClick={() => ui.openPayment(patient.id)}>
                     <Wallet className="h-4 w-4" /> {t("pay.record")}
                   </Button>
+                )}
+              </div>
+
+              {/* portal access */}
+              <div className="rounded-xl border border-black/5 bg-white p-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-ink-900">
+                  <KeyRound className="h-4 w-4 text-teal-600" /> {t("cred.manage")}
+                </div>
+                {patient.portalLogin ? (
+                  <>
+                    <div className="mt-3 space-y-2 rounded-lg bg-sand-50 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-ink-800/50">{t("cred.login")}</span>
+                        <span className="rounded-md bg-white px-2 py-1 text-sm font-semibold text-ink-900 ring-1 ring-black/5">{patient.portalLogin}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-ink-800/50">{t("cred.password")}</span>
+                        <span className="rounded-md bg-white px-2 py-1 font-mono text-sm font-semibold tracking-wide text-ink-900 ring-1 ring-black/5">{patient.portalPassword}</span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex gap-2">
+                      <Button variant="primary" className="flex-1" onClick={shareCreds}><MessageSquare className="h-4 w-4" /> {t("cred.share")}</Button>
+                      <Button variant="outline" onClick={() => setAccess(patient.portalLogin!)} title={t("cred.regen")}><KeyRound className="h-4 w-4" /></Button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-2">
+                    <p className="text-xs text-ink-800/50">{t("cred.none")}</p>
+                    <Button variant="outline" className="mt-2 w-full" onClick={() => setAccess(suggestLogin(patient.name, patient.phone))}>
+                      <KeyRound className="h-4 w-4" /> {t("cred.create")}
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>

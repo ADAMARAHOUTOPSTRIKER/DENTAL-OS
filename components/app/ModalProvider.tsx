@@ -24,6 +24,9 @@ import {
   AlertTriangle,
   PenLine,
   Eraser,
+  KeyRound,
+  Copy,
+  RefreshCw,
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { useData } from "@/components/app/DataProvider";
@@ -31,7 +34,7 @@ import { Button, Avatar } from "@/components/ui/primitives";
 import { Modal, Field, Input, Select, Textarea } from "@/components/app/modals/ui";
 import { toDocFile } from "@/lib/files";
 import { generateDevisPDF, generateConsentPDF } from "@/lib/pdf";
-import { cn, mad, waLink, isoToShort, isoToLabel } from "@/lib/utils";
+import { cn, mad, waLink, isoToShort, isoToLabel, suggestLogin, genPassword } from "@/lib/utils";
 import {
   PRACTITIONERS,
   TODAY_ISO,
@@ -354,6 +357,15 @@ async function resolveTarget(
 /* New patient                                                         */
 /* ------------------------------------------------------------------ */
 
+function CredRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-xs font-medium text-ink-800/50">{label}</span>
+      <span className={cn("rounded-md bg-sand-100 px-2 py-1 text-sm font-semibold text-ink-900", mono && "font-mono tracking-wide")}>{value}</span>
+    </div>
+  );
+}
+
 function PatientModal({ onClose, toast, intake = false }: Common & { intake?: boolean }) {
   const { t } = useApp();
   const { addPatient } = useData();
@@ -366,22 +378,90 @@ function PatientModal({ onClose, toast, intake = false }: Common & { intake?: bo
   const [alerts, setAlerts] = useState("");
   const [busy, setBusy] = useState(false);
 
+  // Portal credentials
+  const [withAccess, setWithAccess] = useState(false);
+  const [login, setLogin] = useState("");
+  const [password, setPassword] = useState("");
+  const [created, setCreated] = useState<{ patient: Patient; login: string; password: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const toggleAccess = () => {
+    setWithAccess((on) => {
+      const next = !on;
+      if (next) {
+        setLogin((l) => l || suggestLogin(name, phone));
+        setPassword((p) => p || genPassword());
+      }
+      return next;
+    });
+  };
+
   const submit = async () => {
     if (!name.trim() || busy) return;
     setBusy(true);
-    await addPatient({
-      name,
-      phone,
+    const useCreds = withAccess && !!login.trim() && !!password.trim();
+    const p = await addPatient({
+      name, phone,
       age: age ? Number(age) : 0,
-      gender,
-      city,
+      gender, city,
       tags: parseList(tags),
       alerts: parseList(alerts),
       intakeStatus: intake ? "draft" : null,
+      portalLogin: useCreds ? login.trim() : null,
+      portalPassword: useCreds ? password : null,
     });
-    toast(intake ? t("prereg.done") : `${name} — ${t("new.patient").toLowerCase()} ✓`);
-    onClose();
+    if (useCreds) {
+      setCreated({ patient: p, login: login.trim(), password });
+      setBusy(false);
+    } else {
+      toast(intake ? t("prereg.done") : `${name} — ${t("new.patient").toLowerCase()} ✓`);
+      onClose();
+    }
   };
+
+  // Credentials success view — hand them to the client.
+  if (created) {
+    const shareText = fillTemplate(t("cred.tmpl"), {
+      name: created.patient.name.split(" ")[0], clinic: t("msg.clinic"), login: created.login, password: created.password,
+    });
+    const copy = async () => {
+      try {
+        await navigator.clipboard.writeText(`${t("cred.login")}: ${created.login}\n${t("cred.password")}: ${created.password}`);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1600);
+      } catch { /* clipboard blocked */ }
+    };
+    return (
+      <Modal
+        title={t("cred.created.title")}
+        subtitle={t("cred.created.sub")}
+        icon={<KeyRound className="h-5 w-5" />}
+        onClose={onClose}
+        footer={
+          <>
+            <Button variant="ghost" onClick={onClose}>{t("cred.done")}</Button>
+            <Button variant="primary" onClick={() => window.open(waLink(created.patient.phone, shareText), "_blank", "noopener,noreferrer")}>
+              <MessageSquare className="h-4 w-4" /> {t("cred.share")}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex items-center gap-3 rounded-xl bg-sand-50 p-3">
+            <Avatar name={created.patient.name} size={38} />
+            <div className="text-sm font-semibold text-ink-900">{created.patient.name}</div>
+          </div>
+          <div className="space-y-2.5 rounded-xl border border-black/5 bg-white p-4">
+            <CredRow label={t("cred.login")} value={created.login} />
+            <CredRow label={t("cred.password")} value={created.password} mono />
+          </div>
+          <Button variant="outline" className="w-full" onClick={copy}>
+            {copied ? <><Check className="h-4 w-4 text-teal-600" /> {t("cred.copied")}</> : <><Copy className="h-4 w-4" /> {t("cred.copy")}</>}
+          </Button>
+        </div>
+      </Modal>
+    );
+  }
 
   return (
     <Modal
@@ -427,6 +507,43 @@ function PatientModal({ onClose, toast, intake = false }: Common & { intake?: bo
         <Field label={t("field.alerts")} hint={t("field.commalist")}>
           <Input value={alerts} onChange={(e) => setAlerts(e.target.value)} placeholder="Allergie pénicilline" />
         </Field>
+
+        {/* Portal credentials */}
+        <div className="rounded-xl border border-black/5 bg-sand-50/60 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2 text-sm">
+              <KeyRound className="h-4 w-4 text-teal-600" />
+              <span>
+                <span className="block font-medium text-ink-900">{t("cred.section")}</span>
+                <span className="block text-xs text-ink-800/50">{t("cred.enable.hint")}</span>
+              </span>
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={withAccess}
+              onClick={toggleAccess}
+              className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", withAccess ? "bg-teal-500" : "bg-ink-900/15")}
+            >
+              <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all", withAccess ? "start-[22px]" : "start-0.5")} />
+            </button>
+          </div>
+          {withAccess && (
+            <div className="mt-3 space-y-2.5">
+              <Field label={t("cred.login")}>
+                <Input value={login} onChange={(e) => setLogin(e.target.value)} placeholder="prenom.nom" />
+              </Field>
+              <Field label={t("cred.password")}>
+                <div className="flex gap-2">
+                  <Input value={password} onChange={(e) => setPassword(e.target.value)} className="flex-1 font-mono tracking-wide" />
+                  <Button variant="outline" onClick={() => setPassword(genPassword())} className="shrink-0">
+                    <RefreshCw className="h-4 w-4" /> {t("cred.generate")}
+                  </Button>
+                </div>
+              </Field>
+            </div>
+          )}
+        </div>
       </div>
     </Modal>
   );

@@ -68,6 +68,8 @@ export async function fetchClinicData(): Promise<ClinicData> {
       languagePreference: r.language_preference ?? null,
       intakeStatus: r.intake_status ?? null,
       recallOptIn: r.recall_opt_in ?? true,
+      portalLogin: r.portal_login ?? null,
+      portalPassword: r.portal_password ?? null,
     }));
 
     const appointments: Appointment[] = (aRes.data ?? []).map((r: any) => ({

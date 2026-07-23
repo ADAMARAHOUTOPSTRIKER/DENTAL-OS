@@ -52,6 +52,37 @@ export function addDaysIso(iso: string, n: number) {
   return d.toISOString().slice(0, 10);
 }
 
+// ---------- Portal credentials (demo helpers) ----------
+// Readable random password (no ambiguous chars). Demo only — a real product
+// would use invite links / hashed passwords, never plaintext.
+export function genPassword(len = 8) {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  const bytes =
+    typeof crypto !== "undefined" && crypto.getRandomValues
+      ? crypto.getRandomValues(new Uint32Array(len))
+      : Array.from({ length: len }, () => Math.floor(Math.random() * 1e9));
+  let out = "";
+  for (let i = 0; i < len; i++) out += chars[bytes[i] % chars.length];
+  return out;
+}
+
+// Suggest a login from a patient's name (e.g. "yasmine.alaoui"), falling back to phone digits.
+export function suggestLogin(name: string, phone = "") {
+  const slug = name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z\s]/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .join(".");
+  if (slug) return slug;
+  const digits = phone.replace(/\D/g, "");
+  return digits ? `p${digits.slice(-6)}` : "";
+}
+
 // ---------- WhatsApp ----------
 // Normalize a Moroccan phone to international digits for wa.me.
 // "+212 661 20 44 18" -> "212661204418"; "0661-204418" -> "212661204418".

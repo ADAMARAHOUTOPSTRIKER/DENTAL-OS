@@ -27,6 +27,8 @@ export interface Patient {
   languagePreference?: "fr" | "ar" | null; // patient's preferred contact language
   intakeStatus?: "draft" | null; // 'draft' = pre-registered online, awaiting clinic validation
   recallOptIn?: boolean; // patient wants clinical recall reminders (default true)
+  portalLogin?: string | null; // credentials the clinic hands to the patient for their online space
+  portalPassword?: string | null; // demo only — a real product would never store this in plaintext
 }
 
 // The clinic's own WhatsApp number — patients message the cabinet here.

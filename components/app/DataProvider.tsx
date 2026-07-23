@@ -56,6 +56,8 @@ export interface NewPatientInput {
   tags?: string[];
   alerts?: string[];
   intakeStatus?: "draft" | null; // online pre-registration awaiting clinic validation
+  portalLogin?: string | null;
+  portalPassword?: string | null;
 }
 
 interface DataStore extends ClinicData {
@@ -88,6 +90,7 @@ interface DataStore extends ClinicData {
 
   setPatientLanguage: (patientId: string, lang: "fr" | "ar") => Promise<void>;
   setRecallOptIn: (patientId: string, optIn: boolean) => Promise<void>;
+  setPatientCredentials: (patientId: string, creds: { login: string; password: string }) => Promise<void>;
 
   addTreatmentPlan: (input: {
     patientId: string;
@@ -190,11 +193,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       tags: input.tags ?? [],
       languagePreference: null,
       intakeStatus: input.intakeStatus ?? null,
+      portalLogin: input.portalLogin ?? null,
+      portalPassword: input.portalPassword ?? null,
     };
     setData((d) => ({ ...d, patients: [...d.patients, p] }));
     persist(async () => {
       // Core columns only, so the insert always succeeds even before optional
-      // columns (intake_status) are migrated in.
+      // columns are migrated in.
       await supabase!.from("patients").insert({
         id: p.id,
         name: p.name,
@@ -210,12 +215,16 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         family: p.family,
         tags: p.tags,
       });
-      if (p.intakeStatus) {
-        // Best-effort: no-op if the column isn't there yet.
+      // Best-effort optional columns — no-op until migrated in.
+      const opt: Record<string, unknown> = {};
+      if (p.intakeStatus) opt.intake_status = p.intakeStatus;
+      if (p.portalLogin) opt.portal_login = p.portalLogin;
+      if (p.portalPassword) opt.portal_password = p.portalPassword;
+      if (Object.keys(opt).length) {
         try {
-          await supabase!.from("patients").update({ intake_status: p.intakeStatus }).eq("id", p.id);
+          await supabase!.from("patients").update(opt).eq("id", p.id);
         } catch {
-          /* column not migrated yet */
+          /* columns not migrated yet */
         }
       }
     });
@@ -422,6 +431,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       supabase!.from("patients").update({ recall_opt_in: optIn }).eq("id", patientId)
     );
   }, []);
+
+  const setPatientCredentials = useCallback(
+    async (patientId: string, creds: { login: string; password: string }) => {
+      setData((d) => ({
+        ...d,
+        patients: d.patients.map((p) =>
+          p.id === patientId ? { ...p, portalLogin: creds.login, portalPassword: creds.password } : p
+        ),
+      }));
+      persist(async () => {
+        try {
+          await supabase!
+            .from("patients")
+            .update({ portal_login: creds.login, portal_password: creds.password })
+            .eq("id", patientId);
+        } catch {
+          /* columns not migrated yet */
+        }
+      });
+    },
+    []
+  );
 
   const addTreatmentPlan = useCallback(
     async (input: {
@@ -661,6 +692,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markArrived,
       setPatientLanguage,
       setRecallOptIn,
+      setPatientCredentials,
       addTreatmentPlan,
       setPlanStatus,
       recordPayment,
@@ -684,6 +716,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markArrived,
       setPatientLanguage,
       setRecallOptIn,
+      setPatientCredentials,
       addTreatmentPlan,
       setPlanStatus,
       recordPayment,

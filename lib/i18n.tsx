@@ -473,6 +473,25 @@ export const DICT: Dict = {
   "field.amount": { fr: "Montant", ar: "المبلغ" },
   "field.commalist": { fr: "séparés par des virgules", ar: "مفصولة بفواصل" },
 
+  // ===== Portal credentials =====
+  "cred.section": { fr: "Accès au portail patient", ar: "الدخول إلى بوابة المريض" },
+  "cred.enable": { fr: "Créer un accès en ligne", ar: "إنشاء وصول عبر الإنترنت" },
+  "cred.enable.hint": { fr: "Identifiant + mot de passe à remettre au patient.", ar: "معرّف + كلمة مرور لتسليمهما للمريض." },
+  "cred.login": { fr: "Identifiant", ar: "المعرّف" },
+  "cred.password": { fr: "Mot de passe", ar: "كلمة المرور" },
+  "cred.generate": { fr: "Générer", ar: "توليد" },
+  "cred.created.title": { fr: "Compte créé — identifiants", ar: "تم إنشاء الحساب — بيانات الدخول" },
+  "cred.created.sub": { fr: "Communiquez ces accès au patient pour son espace en ligne.", ar: "سلّم هذه البيانات للمريض للدخول إلى مساحته." },
+  "cred.copy": { fr: "Copier", ar: "نسخ" },
+  "cred.copied": { fr: "Copié !", ar: "تم النسخ!" },
+  "cred.share": { fr: "Envoyer par WhatsApp", ar: "إرسال عبر واتساب" },
+  "cred.tmpl": { fr: "Bonjour {name}, voici vos accès à votre espace patient {clinic} :\nIdentifiant : {login}\nMot de passe : {password}\nÀ bientôt !", ar: "مرحبًا {name}، إليك بيانات الدخول إلى مساحتك في {clinic}:\nالمعرّف: {login}\nكلمة المرور: {password}\nإلى اللقاء!" },
+  "cred.done": { fr: "Terminé", ar: "تم" },
+  "cred.manage": { fr: "Accès au portail", ar: "الدخول إلى البوابة" },
+  "cred.none": { fr: "Aucun accès en ligne", ar: "لا يوجد وصول" },
+  "cred.create": { fr: "Créer un accès", ar: "إنشاء وصول" },
+  "cred.regen": { fr: "Nouveau mot de passe", ar: "كلمة مرور جديدة" },
+
   // ===== Appointment modal =====
   "appt.existing": { fr: "Patient existant", ar: "مريض موجود" },
   "appt.newpatient": { fr: "Nouveau patient", ar: "مريض جديد" },
