@@ -67,6 +67,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       tags: r.tags ?? [],
       languagePreference: r.language_preference ?? null,
       intakeStatus: r.intake_status ?? null,
+      recallOptIn: r.recall_opt_in ?? true,
     }));
 
     const appointments: Appointment[] = (aRes.data ?? []).map((r: any) => ({

@@ -50,6 +50,7 @@ interface UICtx {
   openNewPatient: () => void;
   openPreRegister: () => void;
   openReschedule: (appointment: Appointment) => void;
+  openPatientBooking: (patientId: string, prefill?: { act?: string }) => void;
   openNewAppointment: (patientId?: string) => void;
   openNewPlan: (patientId?: string) => void;
   openNewDocument: (prefill?: { patientId?: string; docId?: string }) => void;
@@ -72,6 +73,7 @@ export function useUI() {
 type Modal =
   | { kind: "patient"; intake?: boolean }
   | { kind: "reschedule"; appointment: Appointment }
+  | { kind: "patientBooking"; patientId: string; act?: string }
   | { kind: "appointment"; patientId?: string }
   | { kind: "plan"; patientId?: string }
   | { kind: "document"; patientId?: string; docId?: string }
@@ -137,6 +139,8 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       openNewPatient: () => setModal({ kind: "patient" }),
       openPreRegister: () => setModal({ kind: "patient", intake: true }),
       openReschedule: (appointment) => setModal({ kind: "reschedule", appointment }),
+      openPatientBooking: (patientId, prefill) =>
+        setModal({ kind: "patientBooking", patientId, act: prefill?.act }),
       openNewAppointment: (patientId) => setModal({ kind: "appointment", patientId }),
       openNewPlan: (patientId) => setModal({ kind: "plan", patientId }),
       openNewDocument: (prefill) => setModal({ kind: "document", ...prefill }),
@@ -166,6 +170,9 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       )}
       {modal?.kind === "reschedule" && (
         <RescheduleModal onClose={close} toast={toast} appointment={modal.appointment} />
+      )}
+      {modal?.kind === "patientBooking" && (
+        <PatientBookingModal onClose={close} toast={toast} patientId={modal.patientId} prefillAct={modal.act} />
       )}
       {modal?.kind === "appointment" && (
         <AppointmentModal onClose={close} toast={toast} prefill={modal.patientId} />
@@ -1035,6 +1042,84 @@ function RescheduleModal({
           </Field>
         </div>
         <p className="text-xs text-ink-800/45">{t("resched.note")}</p>
+      </div>
+    </Modal>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Patient self-booking (requests a pending RDV)                       */
+/* ------------------------------------------------------------------ */
+
+function PatientBookingModal({
+  onClose,
+  toast,
+  patientId,
+  prefillAct,
+}: Common & { patientId: string; prefillAct?: string }) {
+  const { t } = useApp();
+  const { patientById, addAppointment } = useData();
+  const me = patientById(patientId);
+  const [day, setDay] = useState(TODAY_ISO);
+  const [time, setTime] = useState("09:30");
+  const [act, setAct] = useState(prefillAct ?? "");
+  const [practitioner, setPractitioner] = useState(PRACTITIONERS[0]);
+  const [busy, setBusy] = useState(false);
+
+  const canSubmit = !!act.trim() && !!day;
+
+  const submit = async () => {
+    if (!canSubmit || busy || !me) return;
+    setBusy(true);
+    await addAppointment({
+      patientId,
+      patient: me.name,
+      day,
+      time,
+      duration: 30,
+      act: act.trim(),
+      practitioner,
+      status: "pending", // patient requests → clinic confirms
+    });
+    toast(`${t("book.done")} · ${isoToLabel(day)}`);
+    onClose();
+  };
+
+  return (
+    <Modal
+      title={t("book.title")}
+      subtitle={t("book.sub")}
+      icon={<CalendarPlus className="h-5 w-5" />}
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" onClick={submit} disabled={!canSubmit || busy}>
+            <Check className="h-4 w-4" /> {t("book.request")}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label={t("book.reason")} required>
+          <Input value={act} onChange={(e) => setAct(e.target.value)} placeholder="Contrôle, détartrage, douleur…" autoFocus />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label={t("appt.day")} required hint={isoToLabel(day)}>
+            <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
+          </Field>
+          <Field label={t("appt.time")}>
+            <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+          </Field>
+        </div>
+        <Field label={t("book.practitioner")} hint={t("common.optional")}>
+          <Select value={practitioner} onChange={(e) => setPractitioner(e.target.value)}>
+            {PRACTITIONERS.map((p) => (
+              <option key={p}>{p}</option>
+            ))}
+          </Select>
+        </Field>
+        <p className="text-xs text-ink-800/45">{t("book.note")}</p>
       </div>
     </Modal>
   );

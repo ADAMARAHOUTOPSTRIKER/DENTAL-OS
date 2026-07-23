@@ -84,8 +84,10 @@ interface DataStore extends ClinicData {
     apptId: string,
     next: { day: string; time: string }
   ) => Promise<void>;
+  markArrived: (apptId: string) => Promise<void>; // patient self check-in on the day
 
   setPatientLanguage: (patientId: string, lang: "fr" | "ar") => Promise<void>;
+  setRecallOptIn: (patientId: string, optIn: boolean) => Promise<void>;
 
   addTreatmentPlan: (input: {
     patientId: string;
@@ -383,6 +385,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  // Patient self check-in on the day → status 'arrived' (what the secretary sees).
+  const markArrived = useCallback(async (apptId: string) => {
+    setData((d) => ({
+      ...d,
+      appointments: d.appointments.map((a) =>
+        a.id === apptId ? { ...a, status: "arrived" as const } : a
+      ),
+    }));
+    persist(() =>
+      supabase!.from("appointments").update({ status: "arrived" }).eq("id", apptId)
+    );
+  }, []);
+
   const setPatientLanguage = useCallback(async (patientId: string, lang: "fr" | "ar") => {
     setData((d) => ({
       ...d,
@@ -392,6 +407,19 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     }));
     persist(() =>
       supabase!.from("patients").update({ language_preference: lang }).eq("id", patientId)
+    );
+  }, []);
+
+  const setRecallOptIn = useCallback(async (patientId: string, optIn: boolean) => {
+    setData((d) => ({
+      ...d,
+      patients: d.patients.map((p) =>
+        p.id === patientId ? { ...p, recallOptIn: optIn } : p
+      ),
+    }));
+    // Best-effort: no-op until the column is migrated in.
+    persist(() =>
+      supabase!.from("patients").update({ recall_opt_in: optIn }).eq("id", patientId)
     );
   }, []);
 
@@ -630,7 +658,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markApptReminder,
       confirmAppointmentByPatient,
       rescheduleAppointment,
+      markArrived,
       setPatientLanguage,
+      setRecallOptIn,
       addTreatmentPlan,
       setPlanStatus,
       recordPayment,
@@ -651,7 +681,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       markApptReminder,
       confirmAppointmentByPatient,
       rescheduleAppointment,
+      markArrived,
       setPatientLanguage,
+      setRecallOptIn,
       addTreatmentPlan,
       setPlanStatus,
       recordPayment,

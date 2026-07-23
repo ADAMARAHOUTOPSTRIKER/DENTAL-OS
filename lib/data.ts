@@ -26,7 +26,11 @@ export interface Patient {
   tags: string[];
   languagePreference?: "fr" | "ar" | null; // patient's preferred contact language
   intakeStatus?: "draft" | null; // 'draft' = pre-registered online, awaiting clinic validation
+  recallOptIn?: boolean; // patient wants clinical recall reminders (default true)
 }
+
+// The clinic's own WhatsApp number — patients message the cabinet here.
+export const CLINIC_WHATSAPP = "+212 661 00 00 00";
 
 export interface Appointment {
   id: string;

@@ -26,6 +26,9 @@ export default function DashboardPage() {
   const todaysAppointments = appointments
     .filter((a) => a.day === TODAY_ISO)
     .sort((a, b) => a.time.localeCompare(b.time));
+  // Respect each patient's recall opt-in choice made in their portal.
+  const optedOut = new Set(patients.filter((p) => p.recallOptIn === false).map((p) => p.id));
+  const visibleRecalls = recalls.filter((r) => !optedOut.has(r.patientId));
   const router = useRouter();
   const isDentist = role === "dentist";
   const name = isDentist ? "Dr. Bennani" : "Imane";
@@ -87,9 +90,9 @@ export default function DashboardPage() {
           <SectionCard
             title={t("sec.recalls")}
             delay={0.08}
-            action={<span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">{recalls.filter((r) => !r.reminderSent).length}</span>}
+            action={<span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">{visibleRecalls.filter((r) => !r.reminderSent).length}</span>}
           >
-            <RecallList items={recalls} />
+            <RecallList items={visibleRecalls} />
           </SectionCard>
 
           {isDentist ? (

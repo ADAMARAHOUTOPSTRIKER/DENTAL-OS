@@ -303,6 +303,66 @@ export const DICT: Dict = {
   "prereg.badge": { fr: "Pré-inscrit", ar: "مسجّل مسبقًا" },
   "field.reason": { fr: "Motif / antécédents", ar: "السبب / السوابق" },
 
+  // ===== Portal Tier 2 =====
+  "portal.tab.home": { fr: "Accueil", ar: "الرئيسية" },
+  "portal.tab.care": { fr: "Mes soins", ar: "علاجاتي" },
+  "portal.tab.file": { fr: "Mon dossier", ar: "ملفي" },
+  "portal.book": { fr: "Demander un RDV", ar: "طلب موعد" },
+  "portal.contact": { fr: "Écrire au cabinet", ar: "مراسلة العيادة" },
+  "portal.contact.tmpl": { fr: "Bonjour, je suis {name}. Je souhaite contacter le cabinet au sujet de : ", ar: "مرحبًا، أنا {name}. أودّ التواصل مع العيادة بخصوص: " },
+
+  // Booking modal
+  "book.title": { fr: "Demander un rendez-vous", ar: "طلب موعد" },
+  "book.sub": { fr: "Le cabinet confirmera votre demande.", ar: "ستؤكّد العيادة طلبكم." },
+  "book.reason": { fr: "Motif de la visite", ar: "سبب الزيارة" },
+  "book.practitioner": { fr: "Praticien souhaité", ar: "الطبيب المطلوب" },
+  "book.request": { fr: "Envoyer la demande", ar: "إرسال الطلب" },
+  "book.done": { fr: "Demande de RDV envoyée", ar: "تم إرسال طلب الموعد" },
+  "book.note": { fr: "Votre demande arrive en « en attente » ; le cabinet la confirme.", ar: "يصل طلبكم كـ « قيد الانتظار » وتؤكّده العيادة." },
+
+  // Jour J / check-in
+  "portal.todaybadge": { fr: "C’est aujourd’hui", ar: "اليوم" },
+  "portal.checkin": { fr: "Je suis arrivé(e)", ar: "لقد وصلت" },
+  "portal.checkedin": { fr: "Arrivée signalée", ar: "تم الإبلاغ عن وصولك" },
+
+  // Carnet de soins
+  "portal.history": { fr: "Mon carnet de soins", ar: "دفتر علاجاتي" },
+  "portal.history.empty": { fr: "Aucune visite passée pour le moment.", ar: "لا زيارات سابقة حاليًا." },
+
+  // Devis acceptance
+  "portal.proposed": { fr: "Devis à valider", ar: "فاتورة للموافقة" },
+  "portal.plan.accepted": { fr: "Votre plan de soins", ar: "خطة علاجك" },
+  "plan.accept": { fr: "Accepter le devis", ar: "قبول الفاتورة" },
+  "plan.accepted.done": { fr: "Devis accepté — merci !", ar: "تم قبول الفاتورة — شكرًا!" },
+  "plan.viewpdf": { fr: "Voir le devis (PDF)", ar: "عرض الفاتورة (PDF)" },
+  "plan.consent": { fr: "En acceptant, vous confirmez votre consentement aux soins et au montant indiqué.", ar: "بالقبول، تؤكّدون موافقتكم على العلاج والمبلغ المذكور." },
+  "consent.title": { fr: "Consentement au devis", ar: "الموافقة على الفاتورة" },
+
+  // Poursuivre mon traitement
+  "portal.continue": { fr: "Poursuivre mon traitement", ar: "متابعة علاجي" },
+  "portal.continue.sub": { fr: "Prochaines étapes de votre plan accepté", ar: "الخطوات القادمة من خطتكم المقبولة" },
+  "portal.step.book": { fr: "Prendre RDV", ar: "حجز موعد" },
+  "portal.continue.done": { fr: "Traitement terminé — bravo !", ar: "انتهى العلاج — أحسنت!" },
+
+  // Rappels
+  "portal.recalls": { fr: "Mes rappels de soins", ar: "تذكيرات علاجي" },
+  "portal.recalls.empty": { fr: "Aucun rappel prévu.", ar: "لا تذكيرات مقرّرة." },
+  "portal.recall.book": { fr: "Reprendre RDV", ar: "حجز موعد" },
+  "portal.recallopt": { fr: "Recevoir mes rappels de soins", ar: "استقبال تذكيرات علاجي" },
+  "portal.recallopt.hint": { fr: "Détartrage, contrôles, suivis cliniques — jamais de publicité.", ar: "التقليح، المراقبة، المتابعة السريرية — بلا إعلانات." },
+
+  // Profil médical
+  "portal.medical": { fr: "Mon profil médical", ar: "ملفي الطبي" },
+  "portal.medical.none": { fr: "Aucune alerte médicale enregistrée.", ar: "لا تنبيهات طبية مسجّلة." },
+  "portal.medical.propose": { fr: "Proposer une mise à jour", ar: "اقتراح تحديث" },
+  "portal.medical.hint": { fr: "Ces informations sont validées par le cabinet.", ar: "تتحقّق العيادة من هذه المعلومات." },
+  "portal.medupdate.tmpl": { fr: "Bonjour, je suis {name}. Je souhaite mettre à jour mes informations médicales : ", ar: "مرحبًا، أنا {name}. أودّ تحديث معلوماتي الطبية: " },
+
+  // Réactivation
+  "portal.missed": { fr: "Un rendez-vous n’a pas eu lieu", ar: "موعد لم يتم" },
+  "portal.missed.sub": { fr: "Souhaitez-vous le reprogrammer ?", ar: "هل تودّون إعادة جدولته؟" },
+  "portal.missed.cta": { fr: "Reprendre rendez-vous", ar: "إعادة الحجز" },
+
   "common.mad": { fr: "MAD", ar: "درهم" },
   "common.close": { fr: "Fermer", ar: "إغلاق" },
   "common.save": { fr: "Enregistrer", ar: "حفظ" },
