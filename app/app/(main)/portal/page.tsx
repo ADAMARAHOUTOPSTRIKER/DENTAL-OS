@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  CalendarClock, Check, RefreshCw, FileText, Download, MapPin, Clock, Sparkles,
+  CalendarClock, Check, RefreshCw, FileText, Download, MapPin, Clock,
   ScanLine, ImageIcon, Receipt, Globe, UserPlus, CalendarX, Wallet, CalendarPlus,
   MessageCircle, Home, HeartPulse, FolderClosed, BellRing, BellOff, ShieldAlert,
   ArrowRight, History, MapPinCheck, Users, FileSignature, PenLine, CalendarPlus2,
@@ -223,15 +223,26 @@ export default function PortalPage() {
         </div>
       )}
 
-      {/* tab bar */}
-      <div className="rise mb-5 flex gap-1 rounded-xl border border-black/5 bg-white p-1" style={{ width: "fit-content" }}>
+      {/* tab bar — sliding indicator */}
+      <div className="rise relative mb-5 flex w-full rounded-xl border border-black/5 bg-white p-1 shadow-sm sm:w-[27rem]">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute bottom-1 left-1 top-1 rounded-lg bg-ink-900 shadow-sm"
+          style={{
+            width: "calc((100% - 0.5rem) / 3)",
+            transform: `translateX(${TABS.findIndex((x) => x.key === tab) * 100}%)`,
+            transition: "transform 0.42s cubic-bezier(0.16,1,0.3,1)",
+          }}
+        />
         {TABS.map((tb) => (
           <button key={tb.key} onClick={() => setTab(tb.key)}
-            className={"flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-colors " + (tab === tb.key ? "bg-ink-900 text-white" : "text-ink-800/60 hover:text-ink-900")}>
-            <tb.icon className="h-4 w-4" /> {tb.label}
+            className={"relative z-10 flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-sm font-medium transition-colors " + (tab === tb.key ? "text-white" : "text-ink-800/60 hover:text-ink-900")}>
+            <tb.icon className="h-4 w-4 shrink-0" /> {tb.label}
           </button>
         ))}
       </div>
+
+      <div key={tab} className="tab-panel">
 
       {/* ============================= HOME ============================= */}
       {tab === "home" && (
@@ -248,8 +259,12 @@ export default function PortalPage() {
               </div>
             )}
 
-            <div className="rise relative overflow-hidden rounded-2xl bg-ink-950 p-6 text-white shadow-float">
-              <div className="pointer-events-none absolute inset-0 bg-aurora opacity-40" />
+            <div className="rise noise relative overflow-hidden rounded-2xl bg-ink-950 p-6 text-white shadow-float">
+              <div className="pointer-events-none absolute inset-0 bg-aurora animate-aurora opacity-50" />
+              <div className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-teal-500/20 blur-[90px]" />
+              <div className="pointer-events-none absolute -left-16 bottom-0 h-48 w-48 rounded-full bg-amber-500/10 blur-[80px]" />
+              <div className="pointer-events-none absolute inset-0 opacity-[0.06] [background:radial-gradient(120%_80%_at_50%_-10%,white,transparent)]" />
+              <CalendarClock className="pointer-events-none absolute -bottom-6 -right-4 h-40 w-40 text-white/[0.04]" />
               <div className="relative">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-teal-200"><CalendarClock className="h-4 w-4" /> {t("portal.next")}</div>
@@ -257,7 +272,15 @@ export default function PortalPage() {
                 </div>
                 {nextAppt ? (
                   <>
-                    {isToday && <span className="mt-3 inline-flex items-center gap-1 rounded-full bg-teal-400/20 px-2.5 py-1 text-xs font-semibold text-teal-200"><Sparkles className="h-3 w-3" /> {t("portal.todaybadge")}</span>}
+                    {isToday && (
+                      <span className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-teal-400/15 px-2.5 py-1 text-xs font-semibold text-teal-200 ring-1 ring-teal-400/30">
+                        <span className="relative flex h-1.5 w-1.5">
+                          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-300 opacity-75" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-teal-300" />
+                        </span>
+                        {t("portal.todaybadge")}
+                      </span>
+                    )}
                     <div className="mt-2 font-display text-3xl font-bold capitalize">{isoToLabel(nextAppt.day)} · {nextAppt.time}</div>
                     <div className="mt-1 text-white/70">{nextAppt.act} · {nextAppt.practitioner}</div>
                     <div className="mt-2 flex items-center gap-4 text-sm text-white/50">
@@ -594,6 +617,8 @@ export default function PortalPage() {
           </div>
         </div>
       )}
+
+      </div>
     </>
   );
 }

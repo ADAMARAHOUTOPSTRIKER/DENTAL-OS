@@ -284,6 +284,40 @@ a:focus:not(:focus-visible) {
   animation: toastIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Tab-panel cross-fade (keyed remount replays it on tab switch) */
+@keyframes tabIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+.tab-panel {
+  animation: tabIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Staggered children entrance — set --i on each child */
+.stagger > * {
+  opacity: 0;
+  animation: riseIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+
+/* Soft conic sheen that slowly rotates behind a hero */
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.orbit {
+  animation: spin-slow 26s linear infinite;
+}
+
 /* Reveal-on-scroll base state (IntersectionObserver toggles .is-visible) */
 .reveal {
   opacity: 0;
