@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, CalendarX } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, CalendarX, Check } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Button } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/app/blocks";
@@ -46,6 +46,23 @@ export default function CalendarPage() {
   const router = useRouter();
 
   const [selectedDay, setSelectedDay] = useState(TODAY_ISO);
+
+  // Live "now" line — client-only (avoids SSR hydration mismatch), refreshes each minute.
+  const [nowFrac, setNowFrac] = useState<number | null>(null);
+  useEffect(() => {
+    const update = () => {
+      const d = new Date();
+      setNowFrac(d.getHours() + d.getMinutes() / 60);
+    };
+    update();
+    const id = setInterval(update, 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const showNow = selectedDay === TODAY_ISO && nowFrac !== null;
+  // Clamp to business hours so the live line stays on-grid at any real time.
+  const nowTop =
+    nowFrac !== null ? (Math.min(END, Math.max(START, nowFrac)) - START) * PX_PER_HOUR : 0;
+
   const weekStart = useMemo(() => mondayOf(selectedDay), [selectedDay]);
   const weekDays = useMemo(
     () => Array.from({ length: 6 }, (_, i) => addDays(weekStart, i)), // Mon–Sat
@@ -129,7 +146,10 @@ export default function CalendarPage() {
               <div className="text-xs font-medium opacity-80">{names[i]}</div>
               <div className="font-display text-lg font-bold">{dayNum}</div>
               {isToday && !active && (
-                <span className="absolute inset-x-0 -bottom-0.5 mx-auto h-1 w-1 rounded-full bg-teal-500" />
+                <span className="absolute bottom-1 left-1/2 flex h-1.5 w-1.5 -translate-x-1/2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-teal-500 opacity-70" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-teal-500" />
+                </span>
               )}
               {count > 0 && (
                 <span
@@ -173,6 +193,14 @@ export default function CalendarPage() {
                 {String(h).padStart(2, "0")}:00
               </div>
             ))}
+            {showNow && (
+              <div className="absolute -right-[5px] z-30 -translate-y-1/2" style={{ top: nowTop }}>
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-rose-500 opacity-70" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white" />
+                </span>
+              </div>
+            )}
           </div>
 
           {/* practitioner columns */}
@@ -181,6 +209,9 @@ export default function CalendarPage() {
               {hours.map((h) => (
                 <div key={h} className="absolute inset-x-0 border-t border-black/[0.04]" style={{ top: (h - START) * PX_PER_HOUR }} />
               ))}
+              {showNow && (
+                <div className="pointer-events-none absolute inset-x-0 z-20 h-px bg-rose-500/70" style={{ top: nowTop }} />
+              )}
               {dayAppts
                 .filter((a) => a.practitioner === p)
                 .map((a) => (
@@ -188,13 +219,21 @@ export default function CalendarPage() {
                     key={a.id}
                     onClick={() => router.push(`/app/patients?id=${a.patientId}`)}
                     className={cn(
-                      "absolute inset-x-1.5 overflow-hidden rounded-xl bg-gradient-to-br p-2.5 text-start text-white shadow-sm transition-transform hover:scale-[1.02]",
+                      "fade-in group absolute inset-x-1.5 overflow-hidden rounded-xl bg-gradient-to-br p-2.5 text-start text-white shadow-md ring-1 ring-white/10 transition-all duration-200 hover:z-20 hover:scale-[1.03] hover:shadow-xl hover:ring-white/25",
                       COLORS[p]
                     )}
                     style={{ top: toTop(a.time) + 2, height: (a.duration / 60) * PX_PER_HOUR - 4 }}
                   >
-                    <div className="text-xs font-bold">{a.time} · {a.patient}</div>
-                    <div className="truncate text-[11px] text-white/85">{a.act}</div>
+                    <div className="pointer-events-none absolute inset-0 bg-white/0 transition-colors duration-200 group-hover:bg-white/10" />
+                    <div className="relative flex items-center gap-1.5 text-xs font-bold">
+                      {a.time} · {a.patient}
+                      {a.patientConfirmed && (
+                        <span className="grid h-3.5 w-3.5 place-items-center rounded-full bg-white/25" title="Confirmé par le patient">
+                          <Check className="h-2.5 w-2.5" />
+                        </span>
+                      )}
+                    </div>
+                    <div className="relative truncate text-[11px] text-white/85">{a.act}</div>
                   </button>
                 ))}
             </div>

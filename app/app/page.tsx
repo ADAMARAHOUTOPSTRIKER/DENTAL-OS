@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { type MouseEvent as ReactMouseEvent } from "react";
 import {
   Stethoscope,
   Headset,
@@ -13,6 +14,13 @@ import { useApp, type Role } from "@/lib/i18n";
 import { Logo } from "@/components/ui/primitives";
 import LangToggle from "@/components/landing/LangToggle";
 import { cn } from "@/lib/utils";
+
+// Cursor-following spotlight — sets --mx/--my on the hovered card.
+function spotlightMove(e: ReactMouseEvent<HTMLButtonElement>) {
+  const r = e.currentTarget.getBoundingClientRect();
+  e.currentTarget.style.setProperty("--mx", `${e.clientX - r.left}px`);
+  e.currentTarget.style.setProperty("--my", `${e.clientY - r.top}px`);
+}
 
 const ROLES: {
   role: Role;
@@ -91,20 +99,28 @@ export default function RoleChooser() {
               <button
                 key={r.role}
                 onClick={() => choose(r.role, r.to)}
+                onMouseMove={spotlightMove}
                 style={{ animationDelay: `${0.24 + i * 0.1}s` }}
-                className="rise group relative flex flex-col items-start overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-left transition-all duration-300 hover:-translate-y-1.5 hover:border-teal-400/40 hover:bg-white/[0.07] rtl:text-right"
+                className="rise group relative flex flex-col items-start overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-left transition-all duration-300 hover:-translate-y-2 hover:border-teal-400/40 hover:bg-white/[0.07] hover:shadow-[0_30px_80px_-30px_rgba(46,196,182,0.5)] rtl:text-right"
               >
+                {/* cursor spotlight */}
+                <div
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  style={{ background: "radial-gradient(240px circle at var(--mx,50%) var(--my,50%), rgba(46,196,182,0.18), transparent 65%)" }}
+                />
+                {/* gradient hairline top */}
+                <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-teal-400/50 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
                 <div
                   className={cn(
-                    "mb-5 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-glow transition-transform duration-300 group-hover:scale-110",
+                    "relative mb-5 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-glow transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3",
                     r.accent
                   )}
                 >
                   <r.icon className="h-7 w-7" />
                 </div>
-                <h3 className="font-display text-xl font-bold">{t(r.labelKey)}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/55">{t(r.descKey)}</p>
-                <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-300">
+                <h3 className="relative font-display text-xl font-bold">{t(r.labelKey)}</h3>
+                <p className="relative mt-2 text-sm leading-relaxed text-white/55">{t(r.descKey)}</p>
+                <span className="relative mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-teal-300">
                   {t("role.enter")}
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 rtl:rotate-180 rtl:group-hover:-translate-x-1" />
                 </span>
