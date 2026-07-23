@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill, Button } from "@/components/ui/primitives";
+import { Counter } from "@/components/ui/Counter";
 import { PageHeader } from "@/components/app/blocks";
 import PatientDrawer from "@/components/app/PatientDrawer";
 import { useData } from "@/components/app/DataProvider";
@@ -86,6 +87,14 @@ export default function PatientsPage() {
   const [filter, setFilter] = useState<FilterKey>("all");
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // Measured sliding filter indicator.
+  const filterRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [find, setFind] = useState({ left: 0, width: 0 });
+  useEffect(() => {
+    const el = filterRefs.current[filter];
+    if (el) setFind({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [filter]);
+
   // Deep-link support (?id=) without useSearchParams Suspense constraint.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("id");
@@ -117,7 +126,7 @@ export default function PatientsPage() {
     <>
       <PageHeader
         title={t("patients.title")}
-        subtitle={`${patients.length} ${t("patients.count")}`}
+        subtitle={<><Counter value={patients.length} format={(n) => String(Math.round(n))} /> {t("patients.count")}</>}
         action={
           <Button variant="primary" onClick={() => ui.openNewPatient()}>
             <Plus className="h-4 w-4" /> {t("patients.add")}
@@ -136,14 +145,19 @@ export default function PatientsPage() {
             className="w-full bg-transparent text-sm outline-none placeholder:text-ink-800/40"
           />
         </div>
-        <div className="flex items-center gap-1 rounded-xl border border-black/5 bg-white p-1">
+        <div className="relative flex items-center gap-1 rounded-xl border border-black/5 bg-white p-1">
+          <span
+            className="pointer-events-none absolute bottom-1 top-1 rounded-lg bg-ink-900"
+            style={{ left: find.left, width: find.width, transition: "left 0.35s cubic-bezier(0.16,1,0.3,1), width 0.35s cubic-bezier(0.16,1,0.3,1)" }}
+          />
           {filters.map((f) => (
             <button
               key={f.key}
+              ref={(el) => { filterRefs.current[f.key] = el; }}
               onClick={() => setFilter(f.key)}
               className={cn(
-                "rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
-                filter === f.key ? "bg-ink-900 text-white" : "text-ink-800/60 hover:text-ink-900"
+                "relative z-10 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                filter === f.key ? "text-white" : "text-ink-800/60 hover:text-ink-900"
               )}
             >
               {f.label}

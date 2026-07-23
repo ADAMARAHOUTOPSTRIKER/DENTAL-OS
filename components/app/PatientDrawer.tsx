@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   X,
   Phone,
@@ -61,6 +61,14 @@ export default function PatientDrawer({
   const ui = useUI();
   const [tab, setTab] = useState("overview");
 
+  // Measured sliding tab indicator.
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [ind, setInd] = useState({ left: 0, width: 0 });
+  useEffect(() => {
+    const el = tabRefs.current[tab];
+    if (el) setInd({ left: el.offsetLeft, width: el.offsetWidth });
+  }, [tab]);
+
   const plan = treatmentPlans.find((p) => p.patientId === patient.id);
   const pays = payments.filter((p) => p.patientId === patient.id);
   const docs = documents.filter((d) => d.patientId === patient.id);
@@ -71,8 +79,10 @@ export default function PatientDrawer({
       <div className="fade-in absolute inset-0 bg-ink-950/40 backdrop-blur-sm" onClick={onClose} />
       <aside className="drawer-in absolute inset-y-0 end-0 flex w-full max-w-md flex-col bg-sand-50 shadow-float">
         {/* header */}
-        <div className="relative overflow-hidden bg-ink-950 p-5 text-white">
-          <div className="pointer-events-none absolute inset-0 bg-aurora opacity-40" />
+        <div className="noise relative overflow-hidden bg-ink-950 p-5 text-white">
+          <div className="pointer-events-none absolute inset-0 bg-aurora animate-aurora opacity-50" />
+          <div className="pointer-events-none absolute -right-16 -top-20 h-56 w-56 rounded-full bg-teal-500/25 blur-[80px]" />
+          <div className="pointer-events-none absolute inset-0 opacity-[0.06] [background:radial-gradient(120%_80%_at_50%_-10%,white,transparent)]" />
           <div className="relative">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -135,11 +145,12 @@ export default function PatientDrawer({
           </div>
         )}
 
-        {/* tabs */}
-        <div className="flex gap-1 overflow-x-auto border-b border-black/5 bg-white px-3">
+        {/* tabs — sliding indicator */}
+        <div className="relative flex gap-1 overflow-x-auto border-b border-black/5 bg-white px-3">
           {TABS.map((tb) => (
             <button
               key={tb.key}
+              ref={(el) => { tabRefs.current[tb.key] = el; }}
               onClick={() => setTab(tb.key)}
               className={cn(
                 "relative flex shrink-0 items-center gap-1.5 px-3 py-3 text-sm font-medium transition-colors",
@@ -148,9 +159,12 @@ export default function PatientDrawer({
             >
               <tb.icon className="h-4 w-4" />
               <span className="hidden sm:inline">{t(tb.labelKey)}</span>
-              {tab === tb.key && <span className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-teal-500" />}
             </button>
           ))}
+          <span
+            className="pointer-events-none absolute bottom-0 h-0.5 rounded-full bg-teal-500"
+            style={{ left: ind.left, width: ind.width, transition: "left 0.3s cubic-bezier(0.16,1,0.3,1), width 0.3s cubic-bezier(0.16,1,0.3,1)" }}
+          />
         </div>
 
         {/* content */}
