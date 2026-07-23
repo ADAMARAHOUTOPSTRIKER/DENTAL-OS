@@ -105,20 +105,27 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function SidebarFooter() {
-  const { role, t } = useApp();
+  const { role, t, patientId, setPatientId } = useApp();
+  const { patientById } = useData();
   const router = useRouter();
+  const displayName =
+    role === "patient" && patientId ? patientById(patientId)?.name ?? ROLE_USER[role] : ROLE_USER[role];
+  const switchRole = () => {
+    setPatientId(null);
+    router.push("/app");
+  };
   return (
     <div className="mt-auto space-y-3 border-t border-black/5 pt-4">
       <div className="flex items-center gap-3 rounded-xl bg-sand-50 p-3">
-        <Avatar name={ROLE_USER[role]} size={38} />
+        <Avatar name={displayName} size={38} />
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-ink-900">{ROLE_USER[role]}</div>
+          <div className="truncate text-sm font-semibold text-ink-900">{displayName}</div>
           <div className="truncate text-xs text-ink-800/50">{t(`role.${role}`)}</div>
         </div>
       </div>
       <div className="flex gap-2">
         <button
-          onClick={() => router.push("/app")}
+          onClick={switchRole}
           className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-black/5 bg-white px-2 py-2 text-xs font-medium text-ink-800/70 transition-colors hover:text-teal-600"
         >
           <ArrowLeftRight className="h-3.5 w-3.5" />

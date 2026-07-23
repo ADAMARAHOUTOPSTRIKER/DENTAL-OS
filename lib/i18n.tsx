@@ -492,6 +492,17 @@ export const DICT: Dict = {
   "cred.create": { fr: "Créer un accès", ar: "إنشاء وصول" },
   "cred.regen": { fr: "Nouveau mot de passe", ar: "كلمة مرور جديدة" },
 
+  // ===== Patient login =====
+  "login.title": { fr: "Espace patient", ar: "مساحة المريض" },
+  "login.sub": { fr: "Connectez-vous avec les identifiants remis par votre cabinet.", ar: "سجّل الدخول ببيانات الاعتماد التي سلّمتها لك العيادة." },
+  "login.login": { fr: "Identifiant", ar: "المعرّف" },
+  "login.password": { fr: "Mot de passe", ar: "كلمة المرور" },
+  "login.submit": { fr: "Se connecter", ar: "تسجيل الدخول" },
+  "login.error": { fr: "Identifiant ou mot de passe incorrect.", ar: "معرّف أو كلمة مرور غير صحيحة." },
+  "login.demo": { fr: "Compte de démonstration", ar: "حساب تجريبي" },
+  "login.demo.fill": { fr: "Utiliser ce compte", ar: "استخدام هذا الحساب" },
+  "login.help": { fr: "Pas encore d’accès ? Demandez-les à votre cabinet.", ar: "لا تملك وصولًا بعد؟ اطلبه من عيادتك." },
+
   // ===== Appointment modal =====
   "appt.existing": { fr: "Patient existant", ar: "مريض موجود" },
   "appt.newpatient": { fr: "Nouveau patient", ar: "مريض جديد" },
@@ -587,9 +598,11 @@ interface Store {
   lang: Lang;
   dir: "ltr" | "rtl";
   role: Role;
+  patientId: string | null; // logged-in patient (portal session), null for staff
   setLang: (l: Lang) => void;
   toggleLang: () => void;
   setRole: (r: Role) => void;
+  setPatientId: (id: string | null) => void;
   t: (key: string) => string;
   tIn: (l: Lang, key: string) => string; // translate in a specific language (e.g. patient's preference)
 }
@@ -605,6 +618,7 @@ export function AppProvider({
 }) {
   const [lang, setLangState] = useState<Lang>("fr");
   const [role, setRoleState] = useState<Role>(initialRole);
+  const [patientId, setPatientIdState] = useState<string | null>(null);
 
   // Hydrate from localStorage once on mount.
   useEffect(() => {
@@ -612,6 +626,7 @@ export function AppProvider({
     const r = (localStorage.getItem("dcos-role") as Role) || initialRole;
     setLangState(l);
     setRoleState(r);
+    setPatientIdState(localStorage.getItem("dcos-patient"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -639,6 +654,11 @@ export function AppProvider({
     setRoleState(r);
     localStorage.setItem("dcos-role", r);
   }, []);
+  const setPatientId = useCallback((id: string | null) => {
+    setPatientIdState(id);
+    if (id) localStorage.setItem("dcos-patient", id);
+    else localStorage.removeItem("dcos-patient");
+  }, []);
 
   const t = useCallback(
     (key: string) => {
@@ -660,13 +680,15 @@ export function AppProvider({
       lang,
       dir: lang === "ar" ? "rtl" : "ltr",
       role,
+      patientId,
       setLang,
       toggleLang,
       setRole,
+      setPatientId,
       t,
       tIn,
     }),
-    [lang, role, setLang, toggleLang, setRole, t, tIn]
+    [lang, role, patientId, setLang, toggleLang, setRole, setPatientId, t, tIn]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

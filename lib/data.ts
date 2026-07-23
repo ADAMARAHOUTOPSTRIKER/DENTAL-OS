@@ -89,6 +89,8 @@ export const patients: Patient[] = [
     alerts: ["Allergie pénicilline"],
     family: ["p7", "p8"],
     tags: ["Ortho", "Fidèle"],
+    portalLogin: "yasmine.alaoui",
+    portalPassword: "demo1234",
   },
   {
     id: "p2",

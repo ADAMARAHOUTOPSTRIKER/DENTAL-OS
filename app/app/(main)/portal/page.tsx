@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   CalendarClock, Check, RefreshCw, FileText, Download, MapPin, Clock,
   ScanLine, ImageIcon, Receipt, Globe, UserPlus, CalendarX, Wallet, CalendarPlus,
@@ -45,10 +45,10 @@ const CAT_ICON: Record<DocCategory, typeof FileText> = { xray: ScanLine, photo: 
 const fill = (tmpl: string, map: Record<string, string>) => tmpl.replace(/\{(\w+)\}/g, (_, k) => map[k] ?? "");
 
 type Tab = "home" | "care" | "file";
-const GUARDIAN_ID = "p1"; // Yasmine Alaoui — the logged-in guardian
+const DEMO_PATIENT = "p1"; // fallback (direct visit without logging in)
 
 export default function PortalPage() {
-  const { t, lang, setLang } = useApp();
+  const { t, lang, setLang, patientId } = useApp();
   const data = useData();
   const {
     patientById, treatmentPlans, payments, documents, appointments, recalls,
@@ -58,15 +58,18 @@ export default function PortalPage() {
   const ui = useUI();
   const [tab, setTab] = useState<Tab>("home");
 
-  const guardian = patientById(GUARDIAN_ID)!;
-  const familyIds = useMemo(() => [GUARDIAN_ID, ...guardian.family], [guardian.family]);
-  const [activeId, setActiveId] = useState(GUARDIAN_ID);
+  // The logged-in patient is the account "guardian" (they + any family members).
+  const guardianId = patientId ?? DEMO_PATIENT;
+  const guardian = patientById(guardianId) ?? patientById(DEMO_PATIENT)!;
+  const familyIds = useMemo(() => [guardian.id, ...guardian.family], [guardian.id, guardian.family]);
+  const [activeId, setActiveId] = useState(guardian.id);
+  useEffect(() => { setActiveId(guardian.id); }, [guardian.id]);
   const [regime, setRegime] = useState<Regime>("CNSS (AMO)");
   const [stayFrom, setStayFrom] = useState(TODAY_ISO);
   const [stayTo, setStayTo] = useState(addDaysIso(TODAY_ISO, 14));
   const me = patientById(activeId) ?? guardian;
   const firstName = me.name.split(" ")[0];
-  const isGuardian = me.id === GUARDIAN_ID;
+  const isGuardian = me.id === guardian.id;
 
   const myAppts = useMemo(() => appointments.filter((a) => a.patientId === me.id), [appointments, me.id]);
   const nextAppt = useMemo(
@@ -216,7 +219,7 @@ export default function PortalPage() {
               <button key={id} onClick={() => setActiveId(id)}
                 className={"flex items-center gap-2 rounded-full border py-1 pe-3 ps-1 text-sm font-medium transition-all " + (active ? "border-teal-400 bg-teal-50 text-teal-700 shadow-sm" : "border-black/5 bg-white text-ink-800/60 hover:border-teal-200")}>
                 <Avatar name={m.name} size={26} />
-                {id === GUARDIAN_ID ? t("portal.member.you") : m.name.split(" ")[0]}
+                {id === guardian.id ? t("portal.member.you") : m.name.split(" ")[0]}
               </button>
             );
           })}
@@ -342,7 +345,7 @@ export default function PortalPage() {
                       <button onClick={() => setActiveId(m.id)} className="flex w-full items-center gap-3 rounded-xl border border-black/5 bg-white p-2.5 text-start transition-colors hover:bg-sand-50">
                         <Avatar name={m.name} size={36} />
                         <div className="min-w-0 flex-1">
-                          <div className="truncate text-sm font-medium text-ink-900">{m.id === GUARDIAN_ID ? `${m.name.split(" ")[0]} · ${t("portal.member.you")}` : m.name}</div>
+                          <div className="truncate text-sm font-medium text-ink-900">{m.id === guardian.id ? `${m.name.split(" ")[0]} · ${t("portal.member.you")}` : m.name}</div>
                           <div className="truncate text-xs text-ink-800/50">
                             {na ? `${t("portal.household.nextrdv")}: ${isoToLabel(na.day)}` : t("portal.household.noappt")}
                             {rc > 0 ? ` · ${rc} ${t("portal.household.recallsdue")}` : ""}

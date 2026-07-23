@@ -49,7 +49,7 @@ const ROLES: {
     icon: User,
     labelKey: "role.patient",
     descKey: "role.patient.desc",
-    to: "/app/portal",
+    to: "/app/login",
     accent: "from-sky-400 to-teal-500",
   },
 ];
