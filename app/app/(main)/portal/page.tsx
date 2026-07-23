@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useApp, type Lang } from "@/lib/i18n";
 import { Button, Pill, Avatar } from "@/components/ui/primitives";
+import { Counter } from "@/components/ui/Counter";
 import { PageHeader, SectionCard } from "@/components/app/blocks";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
@@ -297,9 +298,9 @@ export default function PortalPage() {
               <SectionCard title={t("portal.plan.accepted")} delay={0.06}>
                 <div className="rounded-xl bg-sand-50 p-4">
                   <div className="grid grid-cols-3 gap-2 text-center">
-                    <div><div className="text-[11px] uppercase tracking-wide text-ink-800/45">{t("portal.total")}</div><div className="mt-0.5 font-display text-base font-bold text-ink-900">{mad(total)}</div></div>
-                    <div><div className="text-[11px] uppercase tracking-wide text-ink-800/45">{t("portal.paid")}</div><div className="mt-0.5 font-display text-base font-bold text-teal-600">{mad(paidSoFar)}</div></div>
-                    <div><div className="text-[11px] uppercase tracking-wide text-ink-800/45">{t("portal.remaining")}</div><div className="mt-0.5 font-display text-base font-bold text-amber-600">{mad(remaining)}</div></div>
+                    <div><div className="text-[11px] uppercase tracking-wide text-ink-800/45">{t("portal.total")}</div><div className="mt-0.5 font-display text-base font-bold text-ink-900"><Counter value={total} format={mad} /></div></div>
+                    <div><div className="text-[11px] uppercase tracking-wide text-ink-800/45">{t("portal.paid")}</div><div className="mt-0.5 font-display text-base font-bold text-teal-600"><Counter value={paidSoFar} format={mad} /></div></div>
+                    <div><div className="text-[11px] uppercase tracking-wide text-ink-800/45">{t("portal.remaining")}</div><div className="mt-0.5 font-display text-base font-bold text-amber-600"><Counter value={remaining} format={mad} /></div></div>
                   </div>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-black/5"><div className="h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-600 transition-all duration-500" style={{ width: `${pct}%` }} /></div>
                   {remaining === 0 && <div className="mt-2 flex items-center gap-1 text-xs font-medium text-teal-600"><Check className="h-3.5 w-3.5" /> {t("portal.uptodate")}</div>}
@@ -331,7 +332,7 @@ export default function PortalPage() {
                 </ul>
                 <div className="mt-3 flex items-center justify-between border-t border-black/5 pt-3">
                   <span className="text-sm text-ink-800/60">{t("portal.household.balance")}</span>
-                  <span className="font-display text-lg font-bold text-ink-900">{mad(consolidatedBalance)} {t("common.mad")}</span>
+                  <span className="font-display text-lg font-bold text-ink-900"><Counter value={consolidatedBalance} format={mad} /> {t("common.mad")}</span>
                 </div>
               </SectionCard>
             )}

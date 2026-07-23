@@ -49,17 +49,17 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {isDentist ? (
           <>
-            <Kpi index={0} label={t("kpi.revenue")} value={mad(stats.collected)} suffix={t("common.mad")} delta={stats.revenueDelta} icon={<Wallet className="h-4 w-4" />} />
-            <Kpi index={1} label={t("kpi.appointments")} value={String(stats.appointmentsCount)} delta={stats.appointmentsDelta} icon={<CalendarDays className="h-4 w-4" />} />
-            <Kpi index={2} label={t("kpi.noshow")} value={`${stats.noShow}%`} delta={stats.noShowDelta} icon={<UserX className="h-4 w-4" />} accent="amber" />
-            <Kpi index={3} label={t("kpi.acceptance")} value={`${stats.acceptance}%`} delta={stats.acceptanceDelta} icon={<FileCheck className="h-4 w-4" />} />
+            <Kpi index={0} label={t("kpi.revenue")} countTo={stats.collected} format={(n) => mad(n)} suffix={t("common.mad")} delta={stats.revenueDelta} icon={<Wallet className="h-4 w-4" />} />
+            <Kpi index={1} label={t("kpi.appointments")} countTo={stats.appointmentsCount} format={(n) => String(Math.round(n))} delta={stats.appointmentsDelta} icon={<CalendarDays className="h-4 w-4" />} />
+            <Kpi index={2} label={t("kpi.noshow")} countTo={stats.noShow} format={(n) => `${n.toFixed(1)}%`} delta={stats.noShowDelta} icon={<UserX className="h-4 w-4" />} accent="amber" />
+            <Kpi index={3} label={t("kpi.acceptance")} countTo={stats.acceptance} format={(n) => `${Math.round(n)}%`} delta={stats.acceptanceDelta} icon={<FileCheck className="h-4 w-4" />} />
           </>
         ) : (
           <>
-            <Kpi index={0} label={t("kpi.appointments")} value={String(todaysAppointments.length)} suffix={t("app.today")} icon={<CalendarDays className="h-4 w-4" />} />
-            <Kpi index={1} label={t("kpi.due")} value={mad(stats.dueToday)} suffix={t("common.mad")} icon={<Coins className="h-4 w-4" />} accent="amber" />
-            <Kpi index={2} label={t("kpi.pending")} value={mad(stats.outstanding)} suffix={t("common.mad")} icon={<Clock className="h-4 w-4" />} accent="amber" />
-            <Kpi index={3} label={t("kpi.active")} value={mad(stats.activePatients)} icon={<Users className="h-4 w-4" />} />
+            <Kpi index={0} label={t("kpi.appointments")} countTo={todaysAppointments.length} format={(n) => String(Math.round(n))} suffix={t("app.today")} icon={<CalendarDays className="h-4 w-4" />} />
+            <Kpi index={1} label={t("kpi.due")} countTo={stats.dueToday} format={(n) => mad(n)} suffix={t("common.mad")} icon={<Coins className="h-4 w-4" />} accent="amber" />
+            <Kpi index={2} label={t("kpi.pending")} countTo={stats.outstanding} format={(n) => mad(n)} suffix={t("common.mad")} icon={<Clock className="h-4 w-4" />} accent="amber" />
+            <Kpi index={3} label={t("kpi.active")} countTo={stats.activePatients} format={(n) => mad(n)} icon={<Users className="h-4 w-4" />} />
           </>
         )}
       </div>

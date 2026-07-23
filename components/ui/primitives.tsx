@@ -1,6 +1,7 @@
 "use client";
 
 import { cn, initials, avatarColor } from "@/lib/utils";
+import { Counter } from "@/components/ui/Counter";
 
 // ---------- Logo ----------
 export function Logo({ light = false }: { light?: boolean }) {
@@ -110,6 +111,8 @@ export function Card({
 export function Kpi({
   label,
   value,
+  countTo,
+  format,
   delta,
   icon,
   suffix,
@@ -117,7 +120,9 @@ export function Kpi({
   index = 0,
 }: {
   label: string;
-  value: string;
+  value?: string;
+  countTo?: number; // when set, the number animates up from 0
+  format?: (n: number) => string;
   delta?: number;
   icon?: React.ReactNode;
   suffix?: string;
@@ -128,11 +133,11 @@ export function Kpi({
   return (
     <div
       style={{ animationDelay: `${index * 0.06}s` }}
-      className="rise group relative overflow-hidden rounded-2xl border border-black/5 bg-white p-5 shadow-card"
+      className="rise lift hairline-top group relative overflow-hidden rounded-2xl border border-black/5 bg-white p-5 shadow-card hover:shadow-float"
     >
       <div
         className={cn(
-          "absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-10 blur-xl transition-opacity group-hover:opacity-20",
+          "absolute -right-6 -top-6 h-24 w-24 rounded-full opacity-10 blur-xl transition-opacity duration-300 group-hover:opacity-25",
           accent === "teal" ? "bg-teal-400" : "bg-amber-400"
         )}
       />
@@ -143,7 +148,7 @@ export function Kpi({
         {icon && (
           <span
             className={cn(
-              "grid h-8 w-8 place-items-center rounded-lg",
+              "grid h-8 w-8 place-items-center rounded-lg transition-transform duration-300 group-hover:scale-110",
               accent === "teal" ? "bg-teal-50 text-teal-600" : "bg-amber-50 text-amber-600"
             )}
           >
@@ -153,7 +158,7 @@ export function Kpi({
       </div>
       <div className="mt-3 flex items-end gap-1.5">
         <span className="font-display text-3xl font-bold tabular-nums text-ink-900">
-          {value}
+          {countTo !== undefined ? <Counter value={countTo} format={format} /> : value}
         </span>
         {suffix && <span className="mb-1 text-sm text-ink-800/50">{suffix}</span>}
       </div>
@@ -186,7 +191,7 @@ export function Button({
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const styles = {
     primary:
-      "bg-gradient-to-br from-teal-400 to-teal-600 text-white shadow-glow hover:brightness-105 active:scale-[0.98]",
+      "sheen bg-gradient-to-br from-teal-400 to-teal-600 text-white shadow-glow hover:brightness-105 active:scale-[0.98]",
     dark: "bg-ink-900 text-white hover:bg-ink-800 active:scale-[0.98]",
     outline:
       "border border-ink-900/15 bg-white text-ink-900 hover:border-teal-400 hover:text-teal-600",

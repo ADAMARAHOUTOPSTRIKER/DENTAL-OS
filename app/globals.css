@@ -29,6 +29,23 @@ body {
   font-family: var(--font-arabic);
 }
 
+/* Refined text selection */
+::selection {
+  background: rgba(46, 196, 182, 0.24);
+  color: #08222e;
+}
+
+/* Accessible, on-brand focus ring — only for keyboard users */
+:focus-visible {
+  outline: 2px solid rgba(46, 196, 182, 0.65);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible) {
+  outline: none;
+}
+
 /* Thin, refined scrollbar */
 ::-webkit-scrollbar {
   width: 10px;
@@ -118,6 +135,65 @@ body {
       transparent
     );
     animation: shimmer 2.6s infinite;
+  }
+
+  /* Sheen sweep on hover — for primary CTAs */
+  .sheen {
+    position: relative;
+    overflow: hidden;
+  }
+  .sheen::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 60%;
+    height: 100%;
+    transform: translateX(-160%) skewX(-18deg);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.45),
+      transparent
+    );
+    transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+  .sheen:hover::after {
+    transform: translateX(280%) skewX(-18deg);
+  }
+
+  /* Gradient hairline accent along the top of a card */
+  .hairline-top {
+    position: relative;
+  }
+  .hairline-top::before {
+    content: "";
+    position: absolute;
+    inset-inline: 1.25rem;
+    top: 0;
+    height: 1.5px;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(46, 196, 182, 0.55),
+      rgba(255, 160, 46, 0.4),
+      transparent
+    );
+    opacity: 0;
+    transition: opacity 0.35s ease;
+  }
+  .hairline-top:hover::before {
+    opacity: 1;
+  }
+
+  /* Premium card lift */
+  .lift {
+    transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .lift:hover {
+    transform: translateY(-3px);
   }
 }
 
