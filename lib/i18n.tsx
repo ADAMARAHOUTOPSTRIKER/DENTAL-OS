@@ -241,6 +241,8 @@ export const DICT: Dict = {
   "imaging.upload": { fr: "Ajouter", ar: "إضافة" },
   "imaging.before": { fr: "Avant", ar: "قبل" },
   "imaging.after": { fr: "Après", ar: "بعد" },
+  "imaging.compare": { fr: "Glissez pour comparer", ar: "اسحب للمقارنة" },
+  "imaging.viewer": { fr: "Visionneuse", ar: "العارض" },
 
   "pay.title": { fr: "Paiements", ar: "المدفوعات" },
   "pay.record": { fr: "Enregistrer un paiement", ar: "تسجيل دفعة" },
