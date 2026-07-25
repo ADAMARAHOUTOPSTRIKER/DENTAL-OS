@@ -18,7 +18,7 @@ import { PageHeader } from "@/components/app/blocks";
 import PatientDrawer from "@/components/app/PatientDrawer";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
-import { cn, mad } from "@/lib/utils";
+import { cn, mad, isoToLabel } from "@/lib/utils";
 import type { Patient } from "@/lib/data";
 
 type FilterKey = "all" | "balance" | "upcoming";
@@ -80,7 +80,7 @@ function RowMenu({ patient }: { patient: Patient }) {
 }
 
 export default function PatientsPage() {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const { patients, patientById } = useData();
   const ui = useUI();
   const [query, setQuery] = useState("");
@@ -199,7 +199,7 @@ export default function PatientsPage() {
                   </span>
                 </span>
                 <span className="hidden text-sm text-ink-800/70 md:block">{p.phone}</span>
-                <span className="hidden text-sm text-ink-800/60 md:block">{p.lastVisit}</span>
+                <span className="hidden text-sm text-ink-800/60 md:block">{isoToLabel(p.lastVisit, lang)}</span>
                 <span className={cn("hidden text-sm font-semibold md:block", p.balance > 0 ? "text-amber-600" : "text-ink-800/40")}>
                   {p.balance > 0 ? `${mad(p.balance)} ${t("common.mad")}` : "—"}
                 </span>

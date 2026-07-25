@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { rebase, rebaseLoose, SEED_ANCHOR_ISO } from "./clock";
 import {
   patients as seedPatients,
   todaysAppointments as seedAppointments,
@@ -58,8 +59,8 @@ export async function fetchClinicData(): Promise<ClinicData> {
       gender: r.gender,
       phone: r.phone,
       city: r.city,
-      lastVisit: r.last_visit,
-      nextVisit: r.next_visit,
+      lastVisit: rebaseLoose(r.last_visit) ?? r.last_visit,
+      nextVisit: rebaseLoose(r.next_visit),
       balance: r.balance,
       status: r.status,
       alerts: r.alerts ?? [],
@@ -76,7 +77,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       id: r.id,
       patientId: r.patient_id,
       patient: r.patient,
-      day: r.day ?? "2026-07-23",
+      day: rebase(r.day ?? SEED_ANCHOR_ISO),
       time: r.time,
       duration: r.duration,
       act: r.act,
@@ -97,7 +98,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       id: r.id,
       patientId: r.patient_id,
       patient: r.patient,
-      createdAt: r.created_at,
+      createdAt: rebaseLoose(r.created_at) ?? r.created_at,
       status: r.status,
       lines: linesByPlan.get(r.id) ?? [],
     }));
@@ -106,7 +107,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       id: r.id,
       patientId: r.patient_id,
       patient: r.patient,
-      date: r.date,
+      date: rebaseLoose(r.date) ?? r.date,
       amount: r.amount,
       method: r.method,
       act: r.act,
@@ -116,7 +117,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       patientId: r.patient_id,
       patient: r.patient,
       reason: r.reason,
-      due: r.due,
+      due: rebaseLoose(r.due) ?? r.due,
       reminderSent: r.reminder_sent,
     }));
 
@@ -127,7 +128,7 @@ export async function fetchClinicData(): Promise<ClinicData> {
       title: r.title,
       category: r.category,
       files: Array.isArray(r.files) ? r.files : [],
-      createdAt: r.created_at,
+      createdAt: rebaseLoose(r.created_at) ?? r.created_at,
     }));
 
     // If a table came back empty for any reason, prefer seed for that slice.

@@ -8,7 +8,7 @@ import { PageHeader, SectionCard } from "@/components/app/blocks";
 import { RevenueArea } from "@/components/app/charts";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
-import { cn, mad } from "@/lib/utils";
+import { cn, mad, isoToLabel } from "@/lib/utils";
 import type { Payment } from "@/lib/data";
 
 const METHOD_ICON = {
@@ -25,8 +25,8 @@ const METHOD_COLOR: Record<keyof typeof METHOD_ICON, string> = {
 };
 
 export default function PaymentsPage() {
-  const { t } = useApp();
-  const { payments, patients, stats, recordPayment, patientById } = useData();
+  const { t, lang } = useApp();
+  const { payments, patients, treatmentPlans, stats, recordPayment, patientById } = useData();
   const { toast } = useUI();
 
   const [patientId, setPatientId] = useState(patients[0]?.id ?? "");
@@ -59,11 +59,32 @@ export default function PaymentsPage() {
     setTimeout(() => setJustDone(false), 1600);
   };
 
-  const installments = [
-    { patient: "Yasmine Alaoui", plan: "Orthodontie", paid: 4, total: 12, next: "24 Jul", amount: 300 },
-    { patient: "Youssef Berrada", plan: "Implant + prothèse", paid: 1, total: 4, next: "28 Jul", amount: 2900 },
-    { patient: "Salma Cherkaoui", plan: "Blanchiment + facette", paid: 1, total: 3, next: "23 Jul", amount: 1400 },
-  ];
+  // Les échéanciers se déduisent des plans acceptés : montant déjà réglé sur
+  // le total du plan, et prochaine échéance = prochain rendez-vous du patient.
+  // Rien n'est écrit en dur, la liste reste donc juste dans le temps.
+  const installments = useMemo(
+    () =>
+      treatmentPlans
+        .filter((pl) => pl.status === "accepted")
+        .map((pl) => {
+          const who = patientById(pl.patientId);
+          const total = pl.lines.reduce((s, l) => s + l.price, 0);
+          const paid = payments
+            .filter((y) => y.patientId === pl.patientId)
+            .reduce((s, y) => s + y.amount, 0);
+          return {
+            patient: pl.patient,
+            plan: pl.lines.map((l) => l.act).join(" · "),
+            paid: Math.min(paid, total),
+            total,
+            next: who?.nextVisit ?? null,
+            amount: Math.max(total - paid, 0),
+          };
+        })
+        .filter((it) => it.total > 0)
+        .sort((a, b) => b.amount - a.amount),
+    [treatmentPlans, payments, patientById]
+  );
 
   return (
     <>
@@ -169,7 +190,7 @@ export default function PaymentsPage() {
                   <span className="grid h-9 w-9 place-items-center rounded-lg transition-transform group-hover:scale-105" style={{ background: `${METHOD_COLOR[p.method]}1f`, color: METHOD_COLOR[p.method] }}><I className="h-4 w-4" /></span>
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-sm font-medium text-ink-900">{p.patient}</div>
-                    <div className="truncate text-xs text-ink-800/50">{p.act} · {p.date} · {t(`pay.${p.method}`)}</div>
+                    <div className="truncate text-xs text-ink-800/50">{p.act} · {isoToLabel(p.date, lang)} · {t(`pay.${p.method}`)}</div>
                   </div>
                   <span className="font-semibold tabular-nums text-teal-600">+{mad(p.amount)}</span>
                 </li>
@@ -193,14 +214,14 @@ export default function PaymentsPage() {
                   </div>
                 </div>
                 <div className="mt-2.5 flex items-center justify-between text-xs">
-                  <span className="text-ink-800/50">Prochaine · {it.next}</span>
+                  <span className="text-ink-800/50">{it.next ? `${t("pay.next")} · ${isoToLabel(it.next, lang)}` : t("pay.nonext")}</span>
                   <span className="font-semibold text-ink-900">{mad(it.amount)} {t("common.mad")}</span>
                 </div>
                 <div className="mt-2 flex items-center gap-2">
                   <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-black/5">
-                    <div className="h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-600 transition-all duration-700" style={{ width: `${(it.paid / it.total) * 100}%` }} />
+                    <div className="h-full rounded-full bg-gradient-to-r from-teal-400 to-teal-600 transition-all duration-700" style={{ width: `${Math.min(100, (it.paid / it.total) * 100)}%` }} />
                   </div>
-                  <span className="text-xs font-medium text-ink-800/60">{it.paid}/{it.total}</span>
+                  <span className="whitespace-nowrap text-xs font-medium text-ink-800/60">{Math.round((it.paid / it.total) * 100)}%</span>
                 </div>
               </li>
             ))}

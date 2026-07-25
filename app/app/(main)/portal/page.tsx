@@ -18,13 +18,13 @@ import {
   generateReceiptPDF, generateDevisPDF, generateDossierPDF,
   generateFeuilleSoinsPDF, generateInstructionsPDF,
 } from "@/lib/pdf";
-import { mad, isoToLabel, waLink, buildICS, addDaysIso } from "@/lib/utils";
+import { mad, isoToLabel, waLink, buildICS, addDaysIso, dueLabel } from "@/lib/utils";
 import {
   AMO_REGIMES, type Regime, indicativeRate, instructionsFor, precautionFromAlerts, isSurgical,
 } from "@/lib/care";
 import {
   TODAY_ISO, CLINIC_WHATSAPP,
-  type DocFile, type Payment, type DocCategory, type TreatmentPlan,
+  catLabel, type DocFile, type Payment, type TreatmentPlan,
 } from "@/lib/data";
 
 function openFile(f: DocFile) {
@@ -41,7 +41,8 @@ function download(blob: Blob, filename: string) {
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
 }
-const CAT_ICON: Record<DocCategory, typeof FileText> = { xray: ScanLine, photo: ImageIcon, doc: FileText };
+const CAT_ICON: Record<string, typeof FileText> = { xray: ScanLine, photo: ImageIcon, doc: FileText };
+const catIcon = (c: string) => CAT_ICON[c] ?? FileText;
 const fill = (tmpl: string, map: Record<string, string>) => tmpl.replace(/\{(\w+)\}/g, (_, k) => map[k] ?? "");
 
 type Tab = "home" | "care" | "file";
@@ -94,9 +95,11 @@ export default function PortalPage() {
   const paidSoFar = total - remaining;
   const pct = total > 0 ? Math.round((paidSoFar / total) * 100) : 0;
 
+  // Construit sur les documents reellement presents : une categorie libre
+  // creee par le cabinet apparait donc aussi dans l'espace du patient.
   const docsByCat = useMemo(() => {
-    const g: Record<DocCategory, typeof myDocs> = { xray: [], photo: [], doc: [] };
-    myDocs.forEach((d) => g[d.category].push(d));
+    const g: Record<string, typeof myDocs> = {};
+    myDocs.forEach((d) => (g[d.category] ??= []).push(d));
     return g;
   }, [myDocs]);
 
@@ -118,7 +121,7 @@ export default function PortalPage() {
   const showPostop = myRecalls.some((r) => isSurgical(r.reason)) || pastVisits.some((v) => isSurgical(v.act));
   const careActs = Array.from(new Set([...(acceptedPlan?.lines.map((l) => l.act) ?? []), ...(nextAppt ? [nextAppt.act] : [])]));
   const mreItems = [
-    ...myRecalls.filter(() => me.recallOptIn !== false).map((r) => ({ key: `r-${r.reason}`, label: r.reason, sub: r.due })),
+    ...myRecalls.filter(() => me.recallOptIn !== false).map((r) => ({ key: `r-${r.reason}`, label: r.reason, sub: dueLabel(r.due, TODAY_ISO, lang) })),
     ...(acceptedPlan?.lines ?? []).map((l, i) => ({ key: `l-${i}`, label: l.act, sub: l.tooth !== "—" ? `Dent ${l.tooth}` : "" })),
   ];
   const amoRemb = acceptedPlan ? acceptedPlan.lines.reduce((s, l) => s + Math.round(l.price * indicativeRate(l.act, regime)), 0) : 0;
@@ -369,7 +372,7 @@ export default function PortalPage() {
                   {myRecalls.map((r) => (
                     <li key={r.patientId + r.reason} className="flex items-center gap-3 rounded-xl border border-black/5 bg-sand-50 p-2.5">
                       <span className="grid h-9 w-9 place-items-center rounded-lg bg-teal-50 text-teal-600"><BellRing className="h-4 w-4" /></span>
-                      <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink-900">{r.reason}</div><div className="truncate text-xs text-ink-800/50">{r.due}</div></div>
+                      <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink-900">{r.reason}</div><div className="truncate text-xs text-ink-800/50">{dueLabel(r.due, TODAY_ISO, lang)}</div></div>
                       <button onClick={() => ui.openPatientBooking(me.id, { act: r.reason })} className="inline-flex items-center gap-1 rounded-lg bg-white px-2.5 py-1.5 text-xs font-semibold text-teal-700 ring-1 ring-teal-200 hover:bg-teal-500 hover:text-white">{t("portal.recall.book")}</button>
                     </li>
                   ))}
@@ -453,7 +456,7 @@ export default function PortalPage() {
                 {myRecalls.map((r) => (
                   <li key={r.patientId + r.reason} className="flex items-center gap-3 rounded-xl border border-black/5 bg-white p-3">
                     <span className="grid h-9 w-9 place-items-center rounded-lg bg-teal-50 text-teal-600"><BellRing className="h-4 w-4" /></span>
-                    <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink-900">{r.reason}</div><div className="truncate text-xs text-ink-800/50">{r.due}</div></div>
+                    <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink-900">{r.reason}</div><div className="truncate text-xs text-ink-800/50">{dueLabel(r.due, TODAY_ISO, lang)}</div></div>
                     <button onClick={() => ui.openPatientBooking(me.id, { act: r.reason })} className="inline-flex items-center gap-1 rounded-lg bg-sand-50 px-2.5 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-500 hover:text-white">{t("portal.recall.book")}</button>
                   </li>
                 ))}
@@ -539,7 +542,7 @@ export default function PortalPage() {
                   {toSign.map((d) => (
                     <li key={d.id} className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
                       <span className="grid h-9 w-9 place-items-center rounded-lg bg-amber-100 text-amber-600"><FileSignature className="h-4 w-4" /></span>
-                      <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink-900">{d.title}</div><div className="truncate text-xs text-ink-800/50">{d.createdAt}</div></div>
+                      <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink-900">{d.title}</div><div className="truncate text-xs text-ink-800/50">{isoToLabel(d.createdAt, lang)}</div></div>
                       <button onClick={() => ui.openSignature(me.id, { title: d.title, lines: acceptedPlan?.lines })} className="inline-flex items-center gap-1 rounded-lg bg-ink-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-ink-800"><PenLine className="h-3.5 w-3.5" /> {t("portal.sign.cta")}</button>
                     </li>
                   ))}
@@ -551,18 +554,18 @@ export default function PortalPage() {
             <SectionCard title={t("portal.vault")} delay={0.05}>
               {myDocs.length ? (
                 <div className="space-y-4">
-                  {(Object.keys(docsByCat) as DocCategory[]).filter((c) => docsByCat[c].length).map((c) => {
-                    const Icon = CAT_ICON[c];
+                  {Object.keys(docsByCat).filter((c) => docsByCat[c].length).map((c) => {
+                    const Icon = catIcon(c);
                     return (
                       <div key={c}>
-                        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-800/40"><Icon className="h-3.5 w-3.5" /> {t(`cat.${c}`)}</div>
+                        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-800/40"><Icon className="h-3.5 w-3.5" /> {catLabel(c, t)}</div>
                         <ul className="space-y-2">
                           {docsByCat[c].flatMap((d) => d.files.map((f, i) => {
                             const isOrdo = /ordonnance/i.test(d.title);
                             return (
                               <li key={`${d.id}-${i}`} className="flex items-center gap-3 rounded-xl border border-black/5 bg-white p-3">
                                 <span className="grid h-9 w-9 place-items-center rounded-lg bg-teal-50 text-teal-600"><Icon className="h-4 w-4" /></span>
-                                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink-900">{d.title}</span><span className="block truncate text-xs text-ink-800/45">{f.name} · {d.createdAt}</span></span>
+                                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium text-ink-900">{d.title}</span><span className="block truncate text-xs text-ink-800/45">{f.name} · {isoToLabel(d.createdAt, lang)}</span></span>
                                 {isOrdo && (
                                   <button onClick={() => waClinic("portal.renew.tmpl", { doc: d.title })} className="inline-flex items-center gap-1 rounded-lg bg-sand-50 px-2 py-1.5 text-xs font-semibold text-ink-800/70 hover:bg-teal-500 hover:text-white" title={t("portal.renew")}><RotateCw className="h-3.5 w-3.5" /></button>
                                 )}
@@ -601,7 +604,7 @@ export default function PortalPage() {
               <ul className="space-y-2">
                 {myPays.map((p) => (
                   <li key={p.id} className="flex items-center gap-2 rounded-xl border border-black/5 bg-white p-3">
-                    <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink-900">{p.act}</div><div className="text-xs text-ink-800/50">{p.date} · {t(`pay.${p.method}`)}</div></div>
+                    <div className="min-w-0 flex-1"><div className="truncate text-sm font-medium text-ink-900">{p.act}</div><div className="text-xs text-ink-800/50">{isoToLabel(p.date, lang)} · {t(`pay.${p.method}`)}</div></div>
                     <span className="font-semibold text-teal-600">{mad(p.amount)}</span>
                     <button onClick={() => downloadReceipt(p)} className="inline-flex items-center gap-1 rounded-lg bg-sand-50 px-2 py-1.5 text-xs font-semibold text-ink-800/70 hover:bg-teal-500 hover:text-white" title={t("portal.receipt")}><Receipt className="h-3.5 w-3.5" /> {t("portal.receipt")}</button>
                   </li>

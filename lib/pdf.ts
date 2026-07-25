@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import type { Patient, TreatmentPlan, Payment, ClinicDocument } from "./data";
 import { indicativeRate, type Regime } from "./care";
+import { isoToLabel } from "./utils";
 
 const TEAL: [number, number, number] = [46, 196, 182];
 const INK: [number, number, number] = [8, 34, 46];
@@ -30,7 +31,7 @@ export function generateDevisPDF(
   const W = doc.internal.pageSize.getWidth();
   const clinic = opts?.clinic ?? "Cabinet Dentaire DentalOS";
   const practitioner = opts?.practitioner ?? "Dr. Bennani";
-  const date = opts?.date ?? plan.createdAt;
+  const date = opts?.date ?? isoToLabel(plan.createdAt);
   const ref = `DEV-${plan.id.toUpperCase()}-${(patient?.id ?? "").toUpperCase()}`;
 
   // ---- Header band ----
@@ -226,7 +227,7 @@ export function generateReceiptPDF(
   doc.setFontSize(9.5);
   doc.setTextColor(...MUTE);
   doc.text(`Référence : ${ref}`, W - 14, 44, { align: "right" });
-  doc.text(`Date : ${payment.date}`, W - 14, 49.5, { align: "right" });
+  doc.text(`Date : ${isoToLabel(payment.date)}`, W - 14, 49.5, { align: "right" });
 
   // ---- Patient box ----
   const boxY = 60;
@@ -474,7 +475,7 @@ export function generateDossierPDF(
   section("Paiements");
   if (payments.length) {
     payments.forEach((p) => {
-      doc.text(`• ${p.date} — ${p.act}`, 16, y);
+      doc.text(`• ${isoToLabel(p.date)} — ${p.act}`, 16, y);
       doc.text(`${fmtMad(p.amount)} MAD`, W - 19, y, { align: "right" });
       y += 6;
     });
@@ -527,7 +528,7 @@ export function generateFeuilleSoinsPDF(
   doc.setFontSize(9.5);
   doc.setTextColor(...MUTE);
   doc.text(`Régime : ${regime}`, W - 14, 44, { align: "right" });
-  doc.text(`Date : ${plan.createdAt}`, W - 14, 49.5, { align: "right" });
+  doc.text(`Date : ${isoToLabel(plan.createdAt)}`, W - 14, 49.5, { align: "right" });
 
   patientBox(doc, W, 56, patient);
 

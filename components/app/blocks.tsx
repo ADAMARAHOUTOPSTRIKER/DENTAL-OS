@@ -5,8 +5,8 @@ import { useApp } from "@/lib/i18n";
 import { Avatar, Pill } from "@/components/ui/primitives";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
-import { cn } from "@/lib/utils";
-import type { Appointment, Recall } from "@/lib/data";
+import { cn, dueLabel } from "@/lib/utils";
+import { TODAY_ISO, type Appointment, type Recall } from "@/lib/data";
 
 /* ---------- Page header ---------- */
 export function PageHeader({
@@ -141,6 +141,7 @@ export function AgendaList({
 
 /* ---------- Recall list ---------- */
 export function RecallList({ items }: { items: Recall[] }) {
+  const { lang } = useApp();
   const { markRecallSent, patientById } = useData();
   const ui = useUI();
   const openReminder = (r: Recall) => {
@@ -159,7 +160,7 @@ export function RecallList({ items }: { items: Recall[] }) {
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-medium text-ink-900">{r.patient}</div>
             <div className="flex items-center gap-1 truncate text-xs text-ink-800/50">
-              <Clock className="h-3 w-3" /> {r.reason} · {r.due}
+              <Clock className="h-3 w-3" /> {r.reason} · {dueLabel(r.due, TODAY_ISO, lang)}
             </div>
           </div>
           <ReminderButton sent={r.reminderSent} onClick={() => openReminder(r)} />

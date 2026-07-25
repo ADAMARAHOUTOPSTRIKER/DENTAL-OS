@@ -31,19 +31,20 @@ import {
 import { useApp } from "@/lib/i18n";
 import { useData } from "@/components/app/DataProvider";
 import { Button, Avatar } from "@/components/ui/primitives";
-import { Modal, Field, Input, Select, Textarea } from "@/components/app/modals/ui";
+import { Modal, Field, Input, Select, Textarea, Combo, type ComboOption } from "@/components/app/modals/ui";
 import { toDocFile } from "@/lib/files";
 import { generateDevisPDF, generateConsentPDF } from "@/lib/pdf";
 import { cn, mad, waLink, isoToShort, isoToLabel, suggestLogin, genPassword } from "@/lib/utils";
 import {
   PRACTITIONERS,
   TODAY_ISO,
-  TODAY_FULL,
+  DOC_CATEGORIES,
+  catLabel,
+  isKnownCategory,
   type Patient,
   type Appointment,
   type PlanLine,
   type TreatmentPlan,
-  type DocCategory,
   type Payment,
 } from "@/lib/data";
 
@@ -113,7 +114,7 @@ function download(blob: Blob, filename: string) {
 /* ------------------------------------------------------------------ */
 
 export function ModalProvider({ children }: { children: React.ReactNode }) {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const data = useData();
   const [modal, setModal] = useState<Modal>(null);
   const [toasts, setToasts] = useState<{ id: number; text: string; tone: Tone }[]>([]);
@@ -133,13 +134,13 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       await data.addDocument({
         patientId: plan.patientId,
         patient: plan.patient,
-        title: `Devis — ${plan.createdAt}`,
+        title: `Devis — ${isoToLabel(plan.createdAt, lang)}`,
         category: "doc",
         files: [{ name: filename, kind: "pdf", dataUrl }],
       });
       toast(t("plan.sent"));
     },
-    [data, t, toast]
+    [data, t, toast, lang]
   );
 
   const api = useMemo<UICtx>(
@@ -246,38 +247,69 @@ function parseList(s: string) {
     .filter(Boolean);
 }
 
-function PatientPicker({
+/** Cible d'une action : soit un dossier existant, soit un nom encore a creer. */
+export interface PatientRef {
+  id: string;
+  name: string;
+}
+
+/**
+ * Champ patient a saisie libre.
+ *
+ * Une liste deroulante oblige a connaitre le dossier avant d'agir. Au
+ * fauteuil, c'est l'inverse : on a un nom, et le dossier existe ou pas. Ici on
+ * tape le nom ; les dossiers correspondants remontent, et si aucun ne
+ * correspond le nom saisi est retenu tel quel — le dossier sera cree a la
+ * validation.
+ */
+function PatientField({
   value,
   onChange,
   patients,
   placeholder,
+  autoFocus,
 }: {
-  value: string;
-  onChange: (id: string) => void;
+  value: PatientRef;
+  onChange: (next: PatientRef) => void;
   patients: Patient[];
   placeholder: string;
+  autoFocus?: boolean;
 }) {
+  const { t } = useApp();
+  const options: ComboOption[] = patients.map((p) => ({
+    value: p.id,
+    label: p.name,
+    hint: p.balance > 0 ? `${mad(p.balance)} MAD` : p.city,
+  }));
   return (
-    <Select value={value} onChange={(e) => onChange(e.target.value)}>
-      <option value="">{placeholder}</option>
-      {patients.map((p) => (
-        <option key={p.id} value={p.id}>
-          {p.name}
-          {p.balance > 0 ? ` · ${mad(p.balance)} MAD` : ""}
-        </option>
-      ))}
-    </Select>
+    <Combo
+      text={value.name}
+      onText={(name) => onChange({ id: "", name })}
+      options={options}
+      onPick={(o) => onChange({ id: o.value, name: o.label })}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      createLabel={(v) => `${t("patient.create")} « ${v} »`}
+      emptyLabel={t("search.none")}
+    />
   );
 }
 
-/* Toggle between existing / new patient — used by appointment & plan modals. */
-function usePatientTarget(prefill?: string) {
-  const [mode, setMode] = useState<"existing" | "new">(prefill ? "existing" : "existing");
-  const [patientId, setPatientId] = useState(prefill ?? "");
-  const [name, setName] = useState("");
+function usePatientTarget(prefill?: string, patients: Patient[] = []) {
+  const [ref, setRef] = useState<PatientRef>(() => {
+    const p = prefill ? patients.find((x) => x.id === prefill) : undefined;
+    return p ? { id: p.id, name: p.name } : { id: "", name: "" };
+  });
   const [phone, setPhone] = useState("");
-  return { mode, setMode, patientId, setPatientId, name, setName, phone, setPhone };
+  return { ref, setRef, phone, setPhone };
 }
+
+/** Vrai quand la saisie ne correspond a aucun dossier : on va en creer un. */
+const targetIsNew = (target: ReturnType<typeof usePatientTarget>) =>
+  !target.ref.id && target.ref.name.trim().length > 0;
+
+const targetReady = (target: ReturnType<typeof usePatientTarget>) =>
+  !!target.ref.id || target.ref.name.trim().length > 0;
 
 function PatientTargetFields({
   target,
@@ -288,52 +320,28 @@ function PatientTargetFields({
   patients: Patient[];
   t: (k: string) => string;
 }) {
+  const isNew = targetIsNew(target);
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <button
-          type="button"
-          onClick={() => target.setMode("existing")}
-          className={cn(
-            "rounded-xl border px-3 py-2 text-sm font-medium transition-colors",
-            target.mode === "existing"
-              ? "border-teal-400 bg-teal-50 text-teal-700"
-              : "border-black/10 text-ink-800/60 hover:border-teal-200"
-          )}
-        >
-          {t("appt.existing")}
-        </button>
-        <button
-          type="button"
-          onClick={() => target.setMode("new")}
-          className={cn(
-            "rounded-xl border px-3 py-2 text-sm font-medium transition-colors",
-            target.mode === "new"
-              ? "border-teal-400 bg-teal-50 text-teal-700"
-              : "border-black/10 text-ink-800/60 hover:border-teal-200"
-          )}
-        >
-          + {t("appt.newpatient")}
-        </button>
-      </div>
-      {target.mode === "existing" ? (
-        <Field label={t("appt.existing")} required>
-          <PatientPicker
-            value={target.patientId}
-            onChange={target.setPatientId}
-            patients={patients}
-            placeholder={t("pay.selectpatient")}
+      <Field label={t("col.name")} required hint={isNew ? t("patient.willcreate") : undefined}>
+        <PatientField
+          value={target.ref}
+          onChange={target.setRef}
+          patients={patients}
+          placeholder={t("patient.typeorpick")}
+        />
+      </Field>
+      {/* Le telephone n'apparait que pour un nouveau dossier : inutile de le
+          redemander quand le patient est deja connu du cabinet. */}
+      {isNew && (
+        <Field label={t("field.phone")} hint={t("field.phone.hint")}>
+          <Input
+            value={target.phone}
+            onChange={(e) => target.setPhone(e.target.value)}
+            placeholder="+212 6…"
+            inputMode="tel"
           />
         </Field>
-      ) : (
-        <div className="grid grid-cols-2 gap-3">
-          <Field label={t("field.name")} required>
-            <Input value={target.name} onChange={(e) => target.setName(e.target.value)} placeholder="Nom Prénom" />
-          </Field>
-          <Field label={t("field.phone")} hint={t("field.phone.hint")}>
-            <Input value={target.phone} onChange={(e) => target.setPhone(e.target.value)} placeholder="+212 6…" inputMode="tel" />
-          </Field>
-        </div>
       )}
     </div>
   );
@@ -344,12 +352,10 @@ async function resolveTarget(
   target: ReturnType<typeof usePatientTarget>,
   addPatient: ReturnType<typeof useData>["addPatient"]
 ): Promise<{ patientId: string; patient: string } | null> {
-  if (target.mode === "existing") {
-    if (!target.patientId) return null;
-    return { patientId: target.patientId, patient: "" }; // patient name filled by caller
-  }
-  if (!target.name.trim()) return null;
-  const p = await addPatient({ name: target.name, phone: target.phone });
+  if (target.ref.id) return { patientId: target.ref.id, patient: target.ref.name };
+  const name = target.ref.name.trim();
+  if (!name) return null;
+  const p = await addPatient({ name, phone: target.phone });
   return { patientId: p.id, patient: p.name };
 }
 
@@ -556,7 +562,7 @@ function PatientModal({ onClose, toast, intake = false }: Common & { intake?: bo
 function AppointmentModal({ onClose, toast, prefill }: Common & { prefill?: string }) {
   const { t } = useApp();
   const { patients, addAppointment, addPatient, patientById } = useData();
-  const target = usePatientTarget(prefill);
+  const target = usePatientTarget(prefill, patients);
   const [day, setDay] = useState(TODAY_ISO);
   const [time, setTime] = useState("09:30");
   const [duration, setDuration] = useState("30");
@@ -564,10 +570,7 @@ function AppointmentModal({ onClose, toast, prefill }: Common & { prefill?: stri
   const [practitioner, setPractitioner] = useState(PRACTITIONERS[0]);
   const [busy, setBusy] = useState(false);
 
-  const canSubmit =
-    !!act.trim() &&
-    !!day &&
-    (target.mode === "existing" ? !!target.patientId : !!target.name.trim());
+  const canSubmit = !!act.trim() && !!day && targetReady(target);
 
   const submit = async () => {
     if (!canSubmit || busy) return;
@@ -650,7 +653,7 @@ function PlanModal({
 }: Common & { prefill?: string; sendDevis: UICtx["sendDevis"] }) {
   const { t } = useApp();
   const { patients, addTreatmentPlan, addPatient, patientById } = useData();
-  const target = usePatientTarget(prefill);
+  const target = usePatientTarget(prefill, patients);
   const [lines, setLines] = useState<PlanLine[]>([{ tooth: "", act: "", price: 0 }]);
   const [busy, setBusy] = useState(false);
 
@@ -663,9 +666,7 @@ function PlanModal({
     .filter((l) => l.act.trim())
     .map((l) => ({ tooth: l.tooth.trim() || "—", act: l.act.trim(), price: Number(l.price) || 0 }));
   const total = cleanLines.reduce((s, l) => s + l.price, 0);
-  const canSubmit =
-    cleanLines.length > 0 &&
-    (target.mode === "existing" ? !!target.patientId : !!target.name.trim());
+  const canSubmit = cleanLines.length > 0 && targetReady(target);
 
   const build = async () => {
     const resolved = await resolveTarget(target, addPatient);
@@ -775,7 +776,7 @@ function PlanModal({
 /* Document (imaging vault)                                            */
 /* ------------------------------------------------------------------ */
 
-const CATS: DocCategory[] = ["xray", "photo", "doc"];
+
 
 function DocumentModal({
   onClose,
@@ -783,30 +784,54 @@ function DocumentModal({
   prefill,
 }: Common & { prefill: { patientId?: string; docId?: string } }) {
   const { t } = useApp();
-  const { patients, documents, addDocument, addFilesToDocument, patientById } = useData();
+  const { patients, documents, addDocument, addFilesToDocument, addPatient, patientById } = useData();
   const [mode, setMode] = useState<"new" | "add">(prefill.docId ? "add" : "new");
-  const [patientId, setPatientId] = useState(prefill.patientId ?? "");
+  const target = usePatientTarget(prefill.patientId, patients);
   const [docId, setDocId] = useState(prefill.docId ?? "");
+  const [docText, setDocText] = useState(() => {
+    const d = prefill.docId ? documents.find((x) => x.id === prefill.docId) : undefined;
+    return d ? `${d.patient} — ${d.title}` : "";
+  });
   const [title, setTitle] = useState("");
-  const [category, setCategory] = useState<DocCategory>("xray");
+  // `category` est la valeur rangee (cle connue ou texte libre), `catText` ce
+  // que le praticien voit dans le champ.
+  const [category, setCategory] = useState<string>("xray");
+  const [catText, setCatText] = useState(() => t("cat.xray"));
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
 
+  // Les trois familles connues, plus toutes celles que le cabinet a deja creees.
+  const catOptions: ComboOption[] = [
+    ...DOC_CATEGORIES.map((c) => ({ value: c, label: t(`cat.${c}`) })),
+    ...Array.from(new Set(documents.map((d) => d.category).filter((c) => !isKnownCategory(c))))
+      .sort()
+      .map((c) => ({ value: c, label: c })),
+  ];
+  const docOptions: ComboOption[] = documents.map((d) => ({
+    value: d.id,
+    label: `${d.patient} — ${d.title}`,
+    hint: catLabel(d.category, t),
+  }));
+
   const canSubmit =
     files.length > 0 &&
-    (mode === "new" ? !!patientId && !!title.trim() : !!docId);
+    (mode === "new" ? targetReady(target) && !!title.trim() : !!docId);
 
   const submit = async () => {
     if (!canSubmit || busy) return;
     setBusy(true);
     const docFiles = await Promise.all(files.map(toDocFile));
     if (mode === "new") {
-      const p = patientById(patientId);
+      const resolved = await resolveTarget(target, addPatient);
+      if (!resolved) {
+        setBusy(false);
+        return;
+      }
       await addDocument({
-        patientId,
-        patient: p?.name ?? "Patient",
+        patientId: resolved.patientId,
+        patient: resolved.patient || patientById(resolved.patientId)?.name || "Patient",
         title: title.trim(),
-        category,
+        category: category.trim() || "doc",
         files: docFiles,
       });
       toast(t("doc.created"));
@@ -857,30 +882,57 @@ function DocumentModal({
 
         {mode === "new" ? (
           <>
-            <Field label={t("col.name")} required>
-              <PatientPicker value={patientId} onChange={setPatientId} patients={patients} placeholder={t("pay.selectpatient")} />
+            <Field label={t("col.name")} required hint={targetIsNew(target) ? t("patient.willcreate") : undefined}>
+              <PatientField
+                value={target.ref}
+                onChange={target.setRef}
+                patients={patients}
+                placeholder={t("patient.typeorpick")}
+              />
             </Field>
+            {targetIsNew(target) && (
+              <Field label={t("field.phone")} hint={t("field.phone.hint")}>
+                <Input value={target.phone} onChange={(e) => target.setPhone(e.target.value)} placeholder="+212 6…" inputMode="tel" />
+              </Field>
+            )}
             <Field label={t("doc.title")} required>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Radio panoramique, consentement…" />
+              <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("doc.title.ph")} />
             </Field>
-            <Field label={t("doc.category")}>
-              <Select value={category} onChange={(e) => setCategory(e.target.value as DocCategory)}>
-                {CATS.map((c) => (
-                  <option key={c} value={c}>{t(`cat.${c}`)}</option>
-                ))}
-              </Select>
+            {/* Le cabinet range comme il veut : les trois familles sont
+                proposees, mais toute autre categorie tapee est acceptee. */}
+            <Field label={t("doc.category")} hint={t("doc.category.hint")}>
+              <Combo
+                text={catText}
+                onText={(v) => {
+                  setCatText(v);
+                  setCategory(v);
+                }}
+                options={catOptions}
+                onPick={(o) => {
+                  setCatText(o.label);
+                  setCategory(o.value);
+                }}
+                placeholder={t("doc.category.ph")}
+                createLabel={(v) => `${t("doc.category.create")} « ${v} »`}
+              />
             </Field>
           </>
         ) : (
           <Field label={t("doc.pick")} required>
-            <Select value={docId} onChange={(e) => setDocId(e.target.value)}>
-              <option value="">{t("doc.pick")}</option>
-              {documents.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.patient} — {d.title}
-                </option>
-              ))}
-            </Select>
+            <Combo
+              text={docText}
+              onText={(v) => {
+                setDocText(v);
+                setDocId("");
+              }}
+              options={docOptions}
+              onPick={(o) => {
+                setDocText(o.label);
+                setDocId(o.value);
+              }}
+              placeholder={t("doc.pick")}
+              emptyLabel={t("search.none")}
+            />
           </Field>
         )}
 
@@ -937,21 +989,33 @@ const METHODS: Payment["method"][] = ["cash", "card", "cheque", "transfer"];
 
 function PaymentModal({ onClose, toast, prefill }: Common & { prefill?: string }) {
   const { t } = useApp();
-  const { patients, recordPayment, patientById } = useData();
-  const [patientId, setPatientId] = useState(prefill ?? "");
+  const { patients, recordPayment, addPatient, patientById } = useData();
+  const target = usePatientTarget(prefill, patients);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<Payment["method"]>("cash");
   const [act, setAct] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const p = patientById(patientId);
-  const amt = Number(amount) || 0;
-  const canSubmit = !!patientId && amt > 0;
+  const p = patientById(target.ref.id);
+  // Un montant se tape « 1 500 » ou « 1500,50 » : on accepte les deux.
+  const amt = Number(amount.replace(/[\s\u00a0\u202f]/g, "").replace(",", ".")) || 0;
+  const canSubmit = targetReady(target) && amt > 0;
 
   const submit = async () => {
     if (!canSubmit || busy) return;
     setBusy(true);
-    await recordPayment({ patientId, patient: p?.name ?? "Patient", amount: amt, method, act });
+    const resolved = await resolveTarget(target, addPatient);
+    if (!resolved) {
+      setBusy(false);
+      return;
+    }
+    await recordPayment({
+      patientId: resolved.patientId,
+      patient: resolved.patient || patientById(resolved.patientId)?.name || "Patient",
+      amount: amt,
+      method,
+      act,
+    });
     toast(`${t("pay.recorded")} · +${mad(amt)} MAD`);
     onClose();
   };
@@ -971,8 +1035,13 @@ function PaymentModal({ onClose, toast, prefill }: Common & { prefill?: string }
       }
     >
       <div className="space-y-4">
-        <Field label={t("col.name")} required>
-          <PatientPicker value={patientId} onChange={setPatientId} patients={patients} placeholder={t("pay.selectpatient")} />
+        <Field label={t("col.name")} required hint={targetIsNew(target) ? t("patient.willcreate") : undefined}>
+          <PatientField
+            value={target.ref}
+            onChange={target.setRef}
+            patients={patients}
+            placeholder={t("patient.typeorpick")}
+          />
         </Field>
         {p && p.balance > 0 && (
           <div className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2 text-sm">
@@ -1300,7 +1369,7 @@ function SignatureModal({
     if (!hasInk || !me || busy) return;
     setBusy(true);
     const sig = canvasRef.current!.toDataURL("image/png");
-    const { dataUrl } = generateConsentPDF(me, { title, signatureDataUrl: sig, signedAt: TODAY_FULL, lines });
+    const { dataUrl } = generateConsentPDF(me, { title, signatureDataUrl: sig, signedAt: isoToLabel(TODAY_ISO), lines });
     await addDocument({
       patientId, patient: me.name,
       title: `${t("consent.signed")} — ${title}`, category: "doc",

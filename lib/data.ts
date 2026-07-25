@@ -1,5 +1,11 @@
 // Mock domain data for the Dental Clinic OS demo.
 // All figures in MAD. Names are common Moroccan names. Purely fictional.
+//
+// Toutes les dates ci-dessous sont écrites par rapport à l'ancre du jeu de
+// données (voir lib/clock.ts). Elles sont normalisées en ISO puis décalées sur
+// le jour réel au bas de ce fichier : la démo ne vieillit donc jamais.
+
+import { rebase, rebaseLoose, TODAY_ISO as LIVE_TODAY } from "./clock";
 
 export type ApptStatus =
   | "confirmed"
@@ -74,7 +80,7 @@ export interface Payment {
 
 export const PRACTITIONERS = ["Dr. Bennani", "Dr. El Amrani"];
 
-export const patients: Patient[] = [
+const seedPatients: Patient[] = [
   {
     id: "p1",
     name: "Yasmine Alaoui",
@@ -231,7 +237,7 @@ export const patients: Patient[] = [
 
 export const patientById = (id: string) => patients.find((p) => p.id === id);
 
-export const todaysAppointments: Appointment[] = [
+const seedAppointments: Appointment[] = [
   {
     id: "a1",
     patientId: "p5",
@@ -318,7 +324,7 @@ export const todaysAppointments: Appointment[] = [
   },
 ];
 
-export const treatmentPlans: TreatmentPlan[] = [
+const seedTreatmentPlans: TreatmentPlan[] = [
   {
     id: "t1",
     patientId: "p10",
@@ -355,7 +361,7 @@ export const treatmentPlans: TreatmentPlan[] = [
   },
 ];
 
-export const payments: Payment[] = [
+const seedPayments: Payment[] = [
   { id: "y1", patientId: "p5", patient: "Nawal Fassi", date: "23 Jul", amount: 400, method: "cash", act: "Détartrage" },
   { id: "y2", patientId: "p2", patient: "Mehdi Benali", date: "23 Jul", amount: 3800, method: "card", act: "Couronne" },
   { id: "y3", patientId: "p1", patient: "Yasmine Alaoui", date: "22 Jul", amount: 300, method: "cash", act: "Ortho — mensualité" },
@@ -369,14 +375,15 @@ export interface Recall {
   patientId: string;
   patient: string;
   reason: string;
+  /** Échéance en ISO — l'étiquette (« Demain », « Dans 3 jours ») est calculée à l'affichage. */
   due: string;
   reminderSent: boolean;
 }
-export const recalls: Recall[] = [
-  { patientId: "p4", patient: "Omar Idrissi", reason: "Détartrage 6 mois", due: "Cette semaine", reminderSent: false },
-  { patientId: "p1", patient: "Yasmine Alaoui", reason: "Contrôle ortho", due: "Demain", reminderSent: false },
-  { patientId: "p8", patient: "Adam Alaoui", reason: "Contrôle annuel", due: "3 jours", reminderSent: false },
-  { patientId: "p2", patient: "Mehdi Benali", reason: "Suivi implant", due: "5 jours", reminderSent: true },
+const seedRecalls: Recall[] = [
+  { patientId: "p4", patient: "Omar Idrissi", reason: "Détartrage 6 mois", due: "2026-07-26", reminderSent: false },
+  { patientId: "p1", patient: "Yasmine Alaoui", reason: "Contrôle ortho", due: "2026-07-24", reminderSent: false },
+  { patientId: "p8", patient: "Adam Alaoui", reason: "Contrôle annuel", due: "2026-07-27", reminderSent: false },
+  { patientId: "p2", patient: "Mehdi Benali", reason: "Suivi implant", due: "2026-07-29", reminderSent: true },
 ];
 
 // Analytics series
@@ -421,11 +428,30 @@ export const kpis = {
   dueToday: 2450,
 };
 
-// Calendar grid slots for the week view
-export const calendarSlots = todaysAppointments;
+
 
 // ===== Documents (patient-linked imaging / files vault) =====
-export type DocCategory = "xray" | "photo" | "doc";
+/**
+ * La categorie d'un document est du texte libre.
+ *
+ * Trois familles sont connues d'avance (radio, photo, document) : elles ont
+ * leur icone et leur traduction. Mais un cabinet range aussi des « Devis »,
+ * des « Ordonnances », des « Empreintes 3D »… Lui imposer une liste fermee
+ * reviendrait a lui demander de plier son organisation a la notre.
+ */
+export type DocCategory = string;
+
+export const DOC_CATEGORIES = ["xray", "photo", "doc"] as const;
+export type KnownDocCategory = (typeof DOC_CATEGORIES)[number];
+
+export function isKnownCategory(c: string): c is KnownDocCategory {
+  return (DOC_CATEGORIES as readonly string[]).includes(c);
+}
+
+/** Traduite si c'est une des trois familles, sinon rendue telle que saisie. */
+export function catLabel(c: string, t: (k: string) => string) {
+  return isKnownCategory(c) ? t(`cat.${c}`) : c;
+}
 export interface DocFile {
   name: string;
   kind: "image" | "pdf" | "file";
@@ -441,7 +467,7 @@ export interface ClinicDocument {
   createdAt: string;
 }
 
-export const documents: ClinicDocument[] = [
+const seedDocuments: ClinicDocument[] = [
   { id: "d1", patientId: "p10", patient: "Youssef Berrada", title: "Radio panoramique — implant 16", category: "xray", createdAt: "30 Jun 2026", files: [{ name: "panoramique-16.jpg", kind: "image" }] },
   { id: "d2", patientId: "p10", patient: "Youssef Berrada", title: "Consentement — implant", category: "doc", createdAt: "30 Jun 2026", files: [{ name: "consentement-implant.pdf", kind: "pdf" }] },
   { id: "d3", patientId: "p2", patient: "Mehdi Benali", title: "Rétro-alvéolaire 16", category: "xray", createdAt: "02 Jul 2026", files: [{ name: "retro-16.jpg", kind: "image" }] },
@@ -466,7 +492,49 @@ export function categorizeAct(act: string) {
   return ACT_CATEGORIES.find((c) => c.re.test(act)) ?? ACT_CATEGORIES[ACT_CATEGORIES.length - 1];
 }
 
-// The clinic "today" the whole demo is anchored to.
-export const TODAY_LABEL = "23 Jul";
-export const TODAY_FULL = "23 Jul 2026";
-export const TODAY_ISO = "2026-07-23";
+/* ================================================================== */
+/* Normalisation : tout en ISO, tout décalé sur le jour réel           */
+/* ================================================================== */
+/*
+ * Les tableaux `seed*` ci-dessus sont écrits par rapport à l'ancre. Ici on
+ * les relit une seule fois pour (1) ramener les vieilles étiquettes anglaises
+ * (« 30 Jun 2026 ») en ISO et (2) les décaler du nombre de jours qui sépare
+ * l'ancre d'aujourd'hui. Le rendu, lui, remet la date en français ou en arabe
+ * via isoToLabel().
+ */
+
+const keep = (value: string, fallback: string) => rebaseLoose(value) ?? fallback;
+
+export const patients: Patient[] = seedPatients.map((p) => ({
+  ...p,
+  lastVisit: keep(p.lastVisit, p.lastVisit),
+  nextVisit: p.nextVisit ? rebaseLoose(p.nextVisit) : null,
+}));
+
+export const todaysAppointments: Appointment[] = seedAppointments.map((a) => ({
+  ...a,
+  day: rebase(a.day),
+}));
+
+export const treatmentPlans: TreatmentPlan[] = seedTreatmentPlans.map((t) => ({
+  ...t,
+  createdAt: keep(t.createdAt, t.createdAt),
+}));
+
+export const payments: Payment[] = seedPayments.map((p) => ({
+  ...p,
+  date: keep(p.date, p.date),
+}));
+
+export const recalls: Recall[] = seedRecalls.map((r) => ({
+  ...r,
+  due: keep(r.due, r.due),
+}));
+
+export const documents: ClinicDocument[] = seedDocuments.map((d) => ({
+  ...d,
+  createdAt: keep(d.createdAt, d.createdAt),
+}));
+
+/** Le jour courant, réel. Réexporté ici pour que les écrans n'aient qu'un import. */
+export const TODAY_ISO = LIVE_TODAY;

@@ -10,11 +10,9 @@ import {
 } from "react";
 import { fetchClinicData, SEED, type ClinicData } from "@/lib/db";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { isoToLabel } from "@/lib/utils";
 import {
   categorizeAct,
-  TODAY_LABEL,
-  TODAY_FULL,
+  TODAY_ISO,
   type Patient,
   type Appointment,
   type TreatmentPlan,
@@ -118,6 +116,9 @@ interface DataStore extends ClinicData {
   addFilesToDocument: (docId: string, files: DocFile[]) => Promise<void>;
 
   markRecallSent: (patientId: string) => Promise<void>;
+
+  /** Repart du jeu de demonstration d'origine (utile en pleine presentation). */
+  resetDemo: () => Promise<void>;
 }
 
 const Ctx = createContext<DataStore | null>(null);
@@ -134,9 +135,28 @@ function genId(prefix: string) {
   return `${prefix}_${rnd}`;
 }
 
-// Fire-and-forget Supabase write — never blocks the UI, never throws.
+/** Passe a false pour rebrancher les ecritures Supabase. */
+const DEMO_SANDBOX = true;
+
+/**
+ * Bac a sable de demonstration.
+ *
+ * La demo est publique : le lien s'envoie a des cabinets, et n'importe qui
+ * peut cliquer partout. Si chaque visite ecrivait dans Supabase, le premier
+ * prospect laisserait ses essais au suivant -- c'est exactement ce qui s'est
+ * produit (la base s'etait remplie de RDV "CONTROLE" et de devis en double).
+ *
+ * Supabase ne sert donc plus que de source de lecture, et la base a ete passee
+ * en lecture seule cote serveur (migration `demo_read_only`). Les modifications
+ * faites pendant une visite restent dans l'onglet et disparaissent au
+ * rechargement : chaque prospect decouvre une demo intacte, et "Reinitialiser
+ * la demo" suffit a repartir de zero pendant une presentation.
+ *
+ * Le jour ou l'app devient un vrai produit, il suffira de rebrancher ces
+ * ecritures derriere une authentification -- les appels sont tous ecrits.
+ */
 function persist(fn: () => unknown) {
-  if (!supabase) return;
+  if (DEMO_SANDBOX || !supabase) return;
   Promise.resolve()
     .then(() => fn())
     .catch(() => {});
@@ -184,7 +204,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       gender: input.gender ?? "F",
       phone: input.phone ?? "",
       city: input.city ?? "Casablanca",
-      lastVisit: TODAY_FULL,
+      lastVisit: TODAY_ISO,
       nextVisit: null,
       balance: 0,
       status: "paid",
@@ -289,7 +309,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         reminderSent: false,
         practitioner: input.practitioner,
       };
-      const visitLabel = isoToLabel(input.day);
+      const visitDay = input.day;
       setData((d) => ({
         ...d,
         appointments: [...d.appointments, a].sort(
@@ -297,7 +317,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         ),
         // Only advance "next visit" if this appointment is sooner than the current one.
         patients: d.patients.map((p) =>
-          p.id === input.patientId ? { ...p, nextVisit: visitLabel } : p
+          p.id === input.patientId ? { ...p, nextVisit: visitDay } : p
         ),
       }));
       persist(() =>
@@ -367,7 +387,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
           })
           .sort((x, y) => x.day.localeCompare(y.day) || x.time.localeCompare(y.time)),
         patients: d.patients.map((p) =>
-          p.id === movedPatientId ? { ...p, nextVisit: isoToLabel(next.day) } : p
+          p.id === movedPatientId ? { ...p, nextVisit: next.day } : p
         ),
       }));
       persist(async () => {
@@ -465,7 +485,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         id: genId("t"),
         patientId: input.patientId,
         patient: input.patient,
-        createdAt: TODAY_FULL,
+        createdAt: TODAY_ISO,
         status: input.status ?? "proposed",
         lines: input.lines,
       };
@@ -518,7 +538,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         id: genId("y"),
         patientId: input.patientId,
         patient: input.patient,
-        date: TODAY_LABEL,
+        date: TODAY_ISO,
         amount: input.amount,
         method: input.method,
         act: input.act || "Encaissement",
@@ -572,7 +592,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         title: input.title,
         category: input.category,
         files: input.files,
-        createdAt: TODAY_FULL,
+        createdAt: TODAY_ISO,
       };
       setData((d) => ({ ...d, documents: [doc, ...d.documents] }));
       persist(() =>
@@ -617,6 +637,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /* ---------------------------- stats ------------------------------ */
+
+  const resetDemo = useCallback(async () => {
+    setLoading(true);
+    const fresh = await fetchClinicData();
+    setData(fresh);
+    setLoading(false);
+  }, []);
 
   const stats = useMemo<Stats>(() => {
     const { patients, appointments, treatmentPlans, payments } = data;
@@ -699,6 +726,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addDocument,
       addFilesToDocument,
       markRecallSent,
+      resetDemo,
     }),
     [
       data,
@@ -723,6 +751,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       addDocument,
       addFilesToDocument,
       markRecallSent,
+      resetDemo,
     ]
   );
 

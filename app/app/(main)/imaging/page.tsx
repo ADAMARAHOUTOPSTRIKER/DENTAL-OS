@@ -11,10 +11,12 @@ import { PageHeader } from "@/components/app/blocks";
 import { XrayArt, SmileArt } from "@/components/app/DentalArt";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
-import { cn } from "@/lib/utils";
-import type { ClinicDocument, DocCategory, DocFile } from "@/lib/data";
+import { cn, isoToLabel } from "@/lib/utils";
+import { catLabel, isKnownCategory, type ClinicDocument, type DocCategory, type DocFile } from "@/lib/data";
 
-const CAT_ICON = { xray: ScanLine, photo: ImageIcon, doc: FileText } as const;
+const CAT_ICON: Record<string, typeof ScanLine> = { xray: ScanLine, photo: ImageIcon, doc: FileText };
+/** Les categories libres saisies par le cabinet retombent sur l'icone document. */
+const catIcon = (c: string) => CAT_ICON[c] ?? FileText;
 
 /* Render a file's visual — real image if present, else on-brand placeholder art. */
 function Visual({
@@ -113,7 +115,7 @@ function Lightbox({ state, onClose, onIndex }: { state: LightboxState; onClose: 
             <Avatar name={patient} size={34} ring />
             <div>
               <div className="text-sm font-semibold">{title}</div>
-              <div className="text-xs text-white/55">{patient} · {t(`cat.${category}`)}{many ? ` · ${index + 1}/${files.length}` : ""}</div>
+              <div className="text-xs text-white/55">{patient} · {catLabel(category, t)}{many ? ` · ${index + 1}/${files.length}` : ""}</div>
             </div>
           </div>
           <div className="flex items-center gap-1.5">
@@ -171,17 +173,24 @@ function Thumb({ file, category, onOpen }: { file: DocFile; category: DocCategor
 
 /* ---------------- Page ---------------- */
 export default function ImagingPage() {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const { documents } = useData();
   const ui = useUI();
   const [cat, setCat] = useState<"all" | DocCategory>("all");
   const [lightbox, setLightbox] = useState<LightboxState | null>(null);
 
+  // Les trois familles connues, puis les categories que le cabinet a lui-meme
+  // creees en tapant leur nom : le filtre suit l'organisation reelle du coffre.
+  const customCats = useMemo(
+    () => Array.from(new Set(documents.map((d) => d.category).filter((c) => !isKnownCategory(c)))).sort(),
+    [documents]
+  );
   const cats: { key: "all" | DocCategory; label: string; icon?: typeof ScanLine }[] = [
     { key: "all", label: t("app.viewall") },
     { key: "xray", label: t("imaging.xray"), icon: ScanLine },
     { key: "photo", label: t("imaging.photos"), icon: ImageIcon },
     { key: "doc", label: t("imaging.docs"), icon: FileText },
+    ...customCats.map((c) => ({ key: c, label: c, icon: FileText })),
   ];
   const catIndex = cats.findIndex((c) => c.key === cat);
 
@@ -241,7 +250,7 @@ export default function ImagingPage() {
 
             <div className="space-y-4">
               {g.docs.map((d) => {
-                const Icon = CAT_ICON[d.category];
+                const Icon = catIcon(d.category);
                 const isPair = d.category === "photo" && d.files.filter((f) => f.kind === "image").length >= 2;
                 return (
                   <div key={d.id} className="rounded-xl border border-black/5 bg-sand-50/60 p-3">
@@ -249,7 +258,7 @@ export default function ImagingPage() {
                       <span className="grid h-7 w-7 place-items-center rounded-lg bg-teal-50 text-teal-600"><Icon className="h-3.5 w-3.5" /></span>
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-semibold text-ink-900">{d.title}</div>
-                        <div className="truncate text-[11px] text-ink-800/50">{t(`cat.${d.category}`)} · {d.createdAt} · {d.files.length} {t("doc.files.count")}</div>
+                        <div className="truncate text-[11px] text-ink-800/50">{catLabel(d.category, t)} · {isoToLabel(d.createdAt, lang)} · {d.files.length} {t("doc.files.count")}</div>
                       </div>
                       <button onClick={() => ui.openNewDocument({ patientId: g.patientId, docId: d.id })}
                         className="inline-flex items-center gap-1 rounded-lg border border-black/5 bg-white px-2.5 py-1.5 text-xs font-medium text-ink-800/70 transition-colors hover:border-teal-300 hover:text-teal-600">

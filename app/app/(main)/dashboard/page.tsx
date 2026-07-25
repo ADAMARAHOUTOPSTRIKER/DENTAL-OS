@@ -19,7 +19,7 @@ import { SectionCard, AgendaList, RecallList } from "@/components/app/blocks";
 import { RevenueArea, ActsDonut } from "@/components/app/charts";
 import { useData } from "@/components/app/DataProvider";
 import { TODAY_ISO } from "@/lib/data";
-import { mad } from "@/lib/utils";
+import { mad, isoToWeekday } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { t, role, lang } = useApp();
@@ -34,9 +34,7 @@ export default function DashboardPage() {
   const isDentist = role === "dentist";
   const name = isDentist ? "Dr. Bennani" : "Imane";
   const goPatient = (id: string) => router.push(`/app/patients?id=${id}`);
-  const today = new Intl.DateTimeFormat(lang === "ar" ? "ar-MA" : "fr-MA", {
-    weekday: "long", day: "numeric", month: "long",
-  }).format(new Date(2026, 6, 23));
+  const today = isoToWeekday(TODAY_ISO, lang);
 
   return (
     <>

@@ -254,6 +254,17 @@ export const DICT: Dict = {
   "pay.collected": { fr: "Encaissé ce mois", ar: "المحصّل هذا الشهر" },
   "pay.outstanding": { fr: "Encours", ar: "المتبقي" },
   "pay.installments": { fr: "Échéancier", ar: "جدول الأقساط" },
+  "pay.next": { fr: "Prochaine", ar: "القادم" },
+  "demo.reset": { fr: "Réinitialiser la démo", ar: "إعادة ضبط العرض" },
+  "patient.typeorpick": { fr: "Tapez un nom, ou choisissez un dossier", ar: "اكتب اسمًا، أو اختر ملفًا" },
+  "patient.willcreate": { fr: "nouveau dossier", ar: "ملف جديد" },
+  "patient.create": { fr: "Créer le dossier", ar: "إنشاء الملف" },
+  "doc.category.hint": { fr: "tapez la vôtre si besoin", ar: "اكتب فئتك عند الحاجة" },
+  "doc.category.ph": { fr: "Radiographie, devis, empreinte…", ar: "أشعة، فاتورة، بصمة…" },
+  "doc.category.create": { fr: "Nouvelle catégorie", ar: "فئة جديدة" },
+  "doc.title.ph": { fr: "Radio panoramique, consentement…", ar: "أشعة بانورامية، موافقة…" },
+  "demo.reset.done": { fr: "Démo réinitialisée", ar: "تمت إعادة ضبط العرض" },
+  "pay.nonext": { fr: "Aucun rendez-vous prévu", ar: "لا موعد مبرمج" },
 
   "analytics.title": { fr: "Analytique du cabinet", ar: "تحليلات العيادة" },
   "analytics.subtitle": {

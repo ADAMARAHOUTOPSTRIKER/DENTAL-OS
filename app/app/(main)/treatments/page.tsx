@@ -7,10 +7,10 @@ import { Avatar, Pill, Button } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/app/blocks";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
-import { mad } from "@/lib/utils";
+import { mad, isoToLabel } from "@/lib/utils";
 
 export default function TreatmentsPage() {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const { treatmentPlans, setPlanStatus, patientById } = useData();
   const ui = useUI();
   const [sending, setSending] = useState<Record<string, "busy" | "done" | undefined>>({});
@@ -49,7 +49,7 @@ export default function TreatmentsPage() {
                   <Avatar name={plan.patient} size={42} />
                   <div>
                     <div className="font-display text-base font-semibold text-ink-900">{plan.patient}</div>
-                    <div className="text-xs text-ink-800/50">{plan.createdAt}</div>
+                    <div className="text-xs text-ink-800/50">{isoToLabel(plan.createdAt, lang)}</div>
                   </div>
                 </div>
                 <Pill tone={status}>{t(`status.${status}`)}</Pill>

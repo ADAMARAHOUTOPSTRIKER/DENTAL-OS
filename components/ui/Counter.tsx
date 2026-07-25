@@ -29,6 +29,7 @@ export function Counter({
     }
 
     let raf = 0;
+    let safety = 0;
     let startTs = 0;
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
     const tick = (ts: number) => {
@@ -43,9 +44,19 @@ export function Counter({
       started.current = true;
       setDisplay(0);
       raf = requestAnimationFrame(tick);
+      // Filet de sécurité : dans un onglet en arrière-plan le navigateur gèle
+      // requestAnimationFrame, et le compteur resterait bloqué sur 0 — soit
+      // exactement l'écran qu'un prospect ne doit jamais voir. Passé le temps
+      // de l'animation, on affiche la vraie valeur quoi qu'il arrive.
+      safety = window.setTimeout(() => setDisplay(value), duration + 400);
     };
 
     const el = ref.current;
+    const cleanup = () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(safety);
+    };
+
     if (el && "IntersectionObserver" in window) {
       const io = new IntersectionObserver(
         (entries) => {
@@ -59,11 +70,11 @@ export function Counter({
       io.observe(el);
       return () => {
         io.disconnect();
-        cancelAnimationFrame(raf);
+        cleanup();
       };
     }
     start();
-    return () => cancelAnimationFrame(raf);
+    return cleanup;
   }, [value, duration]);
 
   return (

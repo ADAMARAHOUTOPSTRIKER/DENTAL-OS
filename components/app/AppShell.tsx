@@ -21,12 +21,14 @@ import {
   UserPlus,
   CalendarPlus,
   ChevronDown,
+  RotateCcw,
 } from "lucide-react";
 import { useApp, type Role } from "@/lib/i18n";
 import { Logo, Avatar } from "@/components/ui/primitives";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
-import { cn, mad } from "@/lib/utils";
+import { cn, mad, isoToWeekday } from "@/lib/utils";
+import { TODAY_ISO } from "@/lib/data";
 
 function DbStatus() {
   const { source, loading } = useData();
@@ -106,7 +108,9 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
 function SidebarFooter() {
   const { role, t, patientId, setPatientId } = useApp();
-  const { patientById } = useData();
+  const { patientById, resetDemo } = useData();
+  const { toast } = useUI();
+  const [resetting, setResetting] = useState(false);
   const router = useRouter();
   const displayName =
     role === "patient" && patientId ? patientById(patientId)?.name ?? ROLE_USER[role] : ROLE_USER[role];
@@ -130,6 +134,23 @@ function SidebarFooter() {
         >
           <ArrowLeftRight className="h-3.5 w-3.5" />
           {t("nav.switchrole")}
+        </button>
+        {/* Une presentation se rejoue : ce bouton efface tout ce que le
+            visiteur a saisi et remet le cabinet dans son etat d'origine. */}
+        <button
+          onClick={async () => {
+            if (resetting) return;
+            setResetting(true);
+            await resetDemo();
+            setResetting(false);
+            toast(t("demo.reset.done"));
+          }}
+          title={t("demo.reset")}
+          aria-label={t("demo.reset")}
+          className="grid h-[34px] w-9 place-items-center rounded-lg border border-black/5 bg-white text-ink-800/60 transition-colors hover:text-teal-600 disabled:opacity-40"
+          disabled={resetting}
+        >
+          <RotateCcw className={cn("h-3.5 w-3.5", resetting && "animate-spin")} />
         </button>
       </div>
       <DbStatus />
@@ -275,11 +296,7 @@ function NewMenu() {
 
 function Topbar({ onMenu }: { onMenu: () => void }) {
   const { toggleLang, lang, role } = useApp();
-  const today = new Intl.DateTimeFormat(lang === "ar" ? "ar-MA" : "fr-MA", {
-    weekday: "long",
-    day: "numeric",
-    month: "long",
-  }).format(new Date(2026, 6, 23));
+  const today = isoToWeekday(TODAY_ISO, lang);
   const canCreate = role === "dentist" || role === "secretary";
 
   return (

@@ -29,20 +29,69 @@ export function clamp(n: number, min: number, max: number) {
 }
 
 // ---------- Dates ----------
-const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// Mois abrégés en français, et les noms de mois tels qu'on les emploie au
+// Maroc (يوليوز, غشت, شتنبر… — pas la série levantine تموز/آب/أيلول).
+const MON_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+const MON_AR = ["يناير", "فبراير", "مارس", "أبريل", "ماي", "يونيو", "يوليوز", "غشت", "شتنبر", "أكتوبر", "نونبر", "دجنبر"];
 
-// "2026-07-24" -> "24 Jul 2026" (matches the demo's display style)
-export function isoToLabel(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
+export type DateLang = "fr" | "ar";
+
+// "2026-07-24" -> "24 juil. 2026" / "24 يوليوز 2026"
+export function isoToLabel(iso: string, lang: DateLang = "fr") {
+  const [y, m, d] = (iso ?? "").split("-").map(Number);
   if (!y || !m || !d) return iso;
-  return `${d} ${MON[m - 1]} ${y}`;
+  return `${d} ${(lang === "ar" ? MON_AR : MON_FR)[m - 1]} ${y}`;
 }
 
-// "2026-07-24" -> short "24 Jul" (used in reminder templates)
-export function isoToShort(iso: string) {
-  const [y, m, d] = iso.split("-").map(Number);
+// "2026-07-24" -> "24 juil." / "24 يوليوز" (gabarits de rappel, listes denses)
+export function isoToShort(iso: string, lang: DateLang = "fr") {
+  const [y, m, d] = (iso ?? "").split("-").map(Number);
   if (!y || !m || !d) return iso;
-  return `${d} ${MON[m - 1]}`;
+  return `${d} ${(lang === "ar" ? MON_AR : MON_FR)[m - 1]}`;
+}
+
+// Jour de la semaine + date, pour les en-têtes d'agenda : "jeudi 24 juillet".
+export function isoToWeekday(iso: string, lang: DateLang = "fr") {
+  const d = new Date(iso + "T12:00:00Z");
+  if (Number.isNaN(d.getTime())) return iso;
+  return new Intl.DateTimeFormat(lang === "ar" ? "ar-MA" : "fr-MA", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "UTC",
+  }).format(d);
+}
+
+// Écart en jours entre deux dates ISO (positif si `iso` est dans le futur).
+export function daysBetween(iso: string, fromIso: string) {
+  const a = Date.parse(iso + "T00:00:00Z");
+  const b = Date.parse(fromIso + "T00:00:00Z");
+  if (Number.isNaN(a) || Number.isNaN(b)) return NaN;
+  return Math.round((a - b) / 86_400_000);
+}
+
+/**
+ * Étiquette d'échéance lisible : « Demain », « Dans 3 jours », « En retard de
+ * 2 j ». Au-delà d'une semaine on retombe sur la date courte, plus parlante
+ * que « dans 23 jours ».
+ */
+export function dueLabel(iso: string, todayIso: string, lang: DateLang = "fr") {
+  const n = daysBetween(iso, todayIso);
+  if (Number.isNaN(n)) return iso;
+  if (lang === "ar") {
+    if (n === 0) return "اليوم";
+    if (n === 1) return "غدًا";
+    if (n === -1) return "أمس";
+    if (n > 1 && n <= 7) return `خلال ${n} أيام`;
+    if (n < -1) return `متأخر بـ ${Math.abs(n)} أيام`;
+    return isoToShort(iso, "ar");
+  }
+  if (n === 0) return "Aujourd’hui";
+  if (n === 1) return "Demain";
+  if (n === -1) return "Hier";
+  if (n > 1 && n <= 7) return `Dans ${n} jours`;
+  if (n < -1) return `En retard de ${Math.abs(n)} j`;
+  return isoToShort(iso, "fr");
 }
 
 // Add N days to an ISO date (UTC-based, no timezone drift).

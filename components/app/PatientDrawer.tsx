@@ -21,10 +21,10 @@ import {
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill, Button } from "@/components/ui/primitives";
-import { cn, mad, waLink, suggestLogin, genPassword } from "@/lib/utils";
+import { cn, mad, waLink, suggestLogin, genPassword, isoToLabel } from "@/lib/utils";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
-import { type Patient, type ClinicDocument, type DocFile } from "@/lib/data";
+import { catLabel, type Patient, type ClinicDocument, type DocFile } from "@/lib/data";
 
 const TABS = [
   { key: "overview", labelKey: "detail.overview", icon: Activity },
@@ -34,7 +34,8 @@ const TABS = [
   { key: "family", labelKey: "detail.family", icon: Users },
 ];
 
-const CAT_ICON = { xray: ScanLine, photo: ImageIcon, doc: FileText } as const;
+const CAT_ICON: Record<string, typeof ScanLine> = { xray: ScanLine, photo: ImageIcon, doc: FileText };
+const catIcon = (c: string) => CAT_ICON[c] ?? FileText;
 
 function openFile(f: DocFile) {
   if (!f.dataUrl) return;
@@ -57,7 +58,7 @@ export default function PatientDrawer({
   patient: Patient;
   onClose: () => void;
 }) {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const { treatmentPlans, payments, documents, patientById, setPatientCredentials } = useData();
   const ui = useUI();
   const [tab, setTab] = useState("overview");
@@ -185,8 +186,8 @@ export default function PatientDrawer({
               <InfoRow icon={<Phone className="h-4 w-4" />} label={t("col.phone")} value={patient.phone} />
               <InfoRow icon={<MapPin className="h-4 w-4" />} label={t("field.city")} value={patient.city} />
               <div className="grid grid-cols-2 gap-3">
-                <MiniStat label={t("col.last")} value={patient.lastVisit} />
-                <MiniStat label={t("col.next")} value={patient.nextVisit ?? "—"} />
+                <MiniStat label={t("col.last")} value={isoToLabel(patient.lastVisit, lang)} />
+                <MiniStat label={t("col.next")} value={patient.nextVisit ? isoToLabel(patient.nextVisit, lang) : "—"} />
               </div>
               <div className="rounded-xl border border-black/5 bg-white p-4">
                 <div className="flex items-center justify-between">
@@ -240,7 +241,7 @@ export default function PatientDrawer({
             (plan ? (
               <div className="rounded-xl border border-black/5 bg-white p-4">
                 <div className="mb-3 flex items-center justify-between">
-                  <span className="text-xs text-ink-800/50">{plan.createdAt}</span>
+                  <span className="text-xs text-ink-800/50">{isoToLabel(plan.createdAt, lang)}</span>
                   <Pill tone={plan.status}>{t(`status.${plan.status}`)}</Pill>
                 </div>
                 <ul className="divide-y divide-black/5">
@@ -293,7 +294,7 @@ export default function PatientDrawer({
                   <li key={p.id} className="flex items-center justify-between rounded-xl border border-black/5 bg-white p-3">
                     <div>
                       <div className="text-sm font-medium text-ink-900">{p.act}</div>
-                      <div className="text-xs text-ink-800/50">{p.date} · {t(`pay.${p.method}`)}</div>
+                      <div className="text-xs text-ink-800/50">{isoToLabel(p.date, lang)} · {t(`pay.${p.method}`)}</div>
                     </div>
                     <span className="font-semibold text-teal-600">+{mad(p.amount)}</span>
                   </li>
@@ -327,8 +328,8 @@ export default function PatientDrawer({
 }
 
 function DocCard({ doc }: { doc: ClinicDocument }) {
-  const { t } = useApp();
-  const Icon = CAT_ICON[doc.category];
+  const { t, lang } = useApp();
+  const Icon = catIcon(doc.category);
   return (
     <div className="rounded-xl border border-black/5 bg-white p-3">
       <div className="flex items-center gap-2.5">
@@ -337,7 +338,7 @@ function DocCard({ doc }: { doc: ClinicDocument }) {
         </span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-semibold text-ink-900">{doc.title}</div>
-          <div className="truncate text-xs text-ink-800/50">{t(`cat.${doc.category}`)} · {doc.createdAt}</div>
+          <div className="truncate text-xs text-ink-800/50">{catLabel(doc.category, t)} · {isoToLabel(doc.createdAt, lang)}</div>
         </div>
       </div>
       <ul className="mt-2 space-y-1">
