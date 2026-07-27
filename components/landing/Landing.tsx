@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import {
@@ -16,27 +16,79 @@ import {
   Sparkles,
   ShieldCheck,
   Star,
+  Menu,
+  X,
+  Phone,
+  Mail,
+  MessageCircle,
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Logo, Button } from "@/components/ui/primitives";
 import LangToggle from "./LangToggle";
 import Reveal from "@/components/Reveal";
 import DashboardPreview from "./DashboardPreview";
-import { cn } from "@/lib/utils";
+import { cn, waLink } from "@/lib/utils";
+
+// Coordonnées commerciales — à remplacer par celles du cabinet éditeur.
+const SALES_PHONE = "+212 661 00 00 00";
+const SALES_EMAIL = "contact@dentalclinicos.ma";
 
 const ToothScene = dynamic(() => import("@/components/three/ToothScene"), {
   ssr: false,
-  loading: () => (
+  loading: () => <SceneFallback />,
+});
+
+/** Le halo décoratif qui remplace la 3D quand elle n'est pas disponible. */
+function SceneFallback() {
+  return (
     <div className="grid h-full w-full place-items-center">
       <div className="h-40 w-40 animate-pulse rounded-full bg-teal-400/20 blur-2xl" />
     </div>
-  ),
-});
+  );
+}
+
+/**
+ * Enveloppe la scène 3D.
+ *
+ * Sans garde-fou, une machine sans WebGL (poste de cabinet un peu ancien,
+ * navigateur en mode économie, machine virtuelle) fait tomber tout le hero —
+ * donc la première impression du produit. Ici on teste le support avant de
+ * monter, et on rattrape toute erreur de rendu pour retomber sur le halo.
+ */
+class SceneBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? <SceneFallback /> : this.props.children;
+  }
+}
+
+function Scene() {
+  const [supported, setSupported] = useState<boolean | null>(null);
+  useEffect(() => {
+    try {
+      const canvas = document.createElement("canvas");
+      setSupported(Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl")));
+    } catch {
+      setSupported(false);
+    }
+  }, []);
+  if (supported === null) return <SceneFallback />;
+  if (!supported) return <SceneFallback />;
+  return (
+    <SceneBoundary>
+      <ToothScene />
+    </SceneBoundary>
+  );
+}
 
 /* ============================ NAV ============================ */
 function Nav() {
   const { t } = useApp();
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
     onScroll();
@@ -93,8 +145,48 @@ function Nav() {
                 <ArrowRight className="h-4 w-4 rtl:rotate-180" />
               </Button>
             </Link>
+            {/* Sous 640 px il ne restait que le logo et FR/ع : ni menu, ni CTA. */}
+            <button
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={t("nav.menu")}
+              aria-expanded={menuOpen}
+              className={cn(
+                "grid h-9 w-9 place-items-center rounded-lg transition-colors md:hidden",
+                scrolled ? "text-ink-800/70 hover:bg-ink-900/5" : "text-white/80 hover:bg-white/10"
+              )}
+            >
+              {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
           </div>
         </div>
+
+        {menuOpen && (
+          <div className="pop-in glass mt-2 overflow-hidden rounded-2xl p-2 shadow-float md:hidden">
+            {links.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={() => setMenuOpen(false)}
+                className="block rounded-xl px-4 py-3 text-sm font-medium text-ink-900 hover:bg-ink-900/5"
+              >
+                {l.label}
+              </a>
+            ))}
+            <a
+              href="#contact"
+              onClick={() => setMenuOpen(false)}
+              className="block rounded-xl px-4 py-3 text-sm font-medium text-ink-900 hover:bg-ink-900/5"
+            >
+              {t("nav.contact")}
+            </a>
+            <Link href="/app" onClick={() => setMenuOpen(false)} className="mt-1 block">
+              <Button variant="primary" className="w-full justify-center">
+                {t("nav.launch")}
+                <ArrowRight className="h-4 w-4 rtl:rotate-180" />
+              </Button>
+            </Link>
+          </div>
+        )}
       </div>
     </header>
   );
@@ -201,7 +293,7 @@ function Hero() {
             <div className="absolute h-72 w-72 rounded-full border border-white/5" />
           </div>
           <div className="absolute inset-0 rounded-[2rem]">
-            <ToothScene />
+            <Scene />
           </div>
           {/* Floating glass chips around the tooth */}
           <FloatingChip
@@ -514,14 +606,97 @@ function CTA() {
   );
 }
 
+/**
+ * Bande contact.
+ *
+ * La page comptait huit boutons, tous vers la démo — y compris celui de
+ * l'offre « sur devis ». Un cabinet convaincu n'avait aucun moyen de nous
+ * joindre : le tunnel commercial s'arrêtait net. Trois canaux, visibles.
+ */
+function Contact() {
+  const { t } = useApp();
+  const channels = [
+    {
+      icon: MessageCircle,
+      label: t("contact.whatsapp"),
+      value: SALES_PHONE,
+      href: waLink(SALES_PHONE, t("contact.wa.tmpl")),
+      accent: "from-teal-400 to-teal-600",
+    },
+    {
+      icon: Phone,
+      label: t("contact.phone"),
+      value: SALES_PHONE,
+      href: `tel:${SALES_PHONE.replace(/\s/g, "")}`,
+      accent: "from-sky-400 to-teal-500",
+    },
+    {
+      icon: Mail,
+      label: t("contact.email"),
+      value: SALES_EMAIL,
+      href: `mailto:${SALES_EMAIL}?subject=${encodeURIComponent(t("contact.mail.subject"))}`,
+      accent: "from-amber-400 to-amber-600",
+    },
+  ];
+
+  return (
+    <section id="contact" className="border-t border-black/5 bg-white py-20">
+      <div className="mx-auto max-w-7xl px-5">
+        <Reveal>
+          <div className="text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-700">
+              <Sparkles className="h-3.5 w-3.5" /> {t("contact.kicker")}
+            </span>
+            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
+              {t("contact.title")}
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-ink-800/60">{t("contact.sub")}</p>
+          </div>
+        </Reveal>
+
+        <div className="mt-10 grid gap-4 sm:grid-cols-3">
+          {channels.map((c, i) => (
+            <Reveal key={c.label} delay={i * 0.06}>
+              <a
+                href={c.href}
+                target={c.href.startsWith("http") ? "_blank" : undefined}
+                rel={c.href.startsWith("http") ? "noopener noreferrer" : undefined}
+                className="group flex h-full flex-col items-start gap-3 rounded-2xl border border-black/5 bg-sand-50 p-5 transition-all hover:-translate-y-1 hover:border-teal-300 hover:shadow-card"
+              >
+                <span className={cn("grid h-11 w-11 place-items-center rounded-xl bg-gradient-to-br text-white shadow-glow", c.accent)}>
+                  <c.icon className="h-5 w-5" />
+                </span>
+                <span className="font-display font-bold text-ink-900">{c.label}</span>
+                <span className="text-sm text-ink-800/60" dir="ltr">{c.value}</span>
+                <span className="mt-auto inline-flex items-center gap-1 pt-2 text-sm font-semibold text-teal-600">
+                  {t("contact.reach")}
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1 rtl:rotate-180 rtl:group-hover:-translate-x-1" />
+                </span>
+              </a>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function Footer() {
   const { t } = useApp();
   return (
     <footer className="border-t border-black/5 bg-sand-50 py-10">
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 sm:flex-row">
         <Logo />
-        <p className="text-sm text-ink-800/50">{t("footer.rights")}</p>
-        <p className="text-xs text-ink-800/40">{t("footer.note")}</p>
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-sm">
+          <a href="#features" className="text-ink-800/60 transition-colors hover:text-teal-600">{t("nav.features")}</a>
+          <a href="#pricing" className="text-ink-800/60 transition-colors hover:text-teal-600">{t("nav.pricing")}</a>
+          <a href="#contact" className="text-ink-800/60 transition-colors hover:text-teal-600">{t("nav.contact")}</a>
+          <Link href="/app" className="font-semibold text-teal-600 hover:text-teal-700">{t("nav.launch")}</Link>
+        </div>
+        <div className="text-center sm:text-end">
+          <p className="text-sm text-ink-800/50">{t("footer.rights")}</p>
+          <p className="text-xs text-ink-800/40">{t("footer.note")}</p>
+        </div>
       </div>
     </footer>
   );
@@ -539,6 +714,7 @@ export default function Landing() {
       <Preview />
       <Pricing />
       <CTA />
+      <Contact />
       <Footer />
     </main>
   );

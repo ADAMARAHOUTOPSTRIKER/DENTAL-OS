@@ -13,6 +13,7 @@ import {
   type Payment,
   type Recall,
   type ClinicDocument,
+  BACKGROUND,
 } from "./data";
 
 export interface ClinicData {
@@ -131,12 +132,15 @@ export async function fetchClinicData(): Promise<ClinicData> {
       createdAt: rebaseLoose(r.created_at) ?? r.created_at,
     }));
 
-    // If a table came back empty for any reason, prefer seed for that slice.
+    // Si une table revient vide, on préfère le jeu local pour cette tranche.
+    // Et dans tous les cas on rajoute la patientèle de fond : elle ne vit pas
+    // en base (voir BACKGROUND dans lib/data.ts), mais sans elle la démo live
+    // retomberait à dix dossiers — des indicateurs qu'aucun dentiste ne croit.
     return {
-      patients: patients.length ? patients : SEED.patients,
-      appointments: appointments.length ? appointments : SEED.appointments,
+      patients: [...(patients.length ? patients : SEED.patients), ...BACKGROUND.patients],
+      appointments: [...(appointments.length ? appointments : SEED.appointments), ...BACKGROUND.appointments],
       treatmentPlans: treatmentPlans.length ? treatmentPlans : SEED.treatmentPlans,
-      payments: payments.length ? payments : SEED.payments,
+      payments: [...(payments.length ? payments : SEED.payments), ...BACKGROUND.payments],
       recalls: recalls.length ? recalls : SEED.recalls,
       documents: documents.length ? documents : SEED.documents,
     };

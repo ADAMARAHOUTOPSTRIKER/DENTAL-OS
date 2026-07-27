@@ -63,7 +63,11 @@ interface UICtx {
   openReschedule: (appointment: Appointment) => void;
   openPatientBooking: (patientId: string, prefill?: { act?: string; day?: string }) => void;
   openSignature: (patientId: string, opts: { title: string; lines?: { act: string; price: number }[] }) => void;
-  openNewAppointment: (patientId?: string) => void;
+  openNewAppointment: (
+    patientId?: string,
+    /** Pré-remplissage venu d'un clic sur un créneau de l'agenda. */
+    slot?: { day?: string; time?: string; practitioner?: string }
+  ) => void;
   openNewPlan: (patientId?: string) => void;
   openNewDocument: (prefill?: { patientId?: string; docId?: string }) => void;
   openPayment: (patientId?: string) => void;
@@ -87,7 +91,7 @@ type Modal =
   | { kind: "reschedule"; appointment: Appointment }
   | { kind: "patientBooking"; patientId: string; act?: string; day?: string }
   | { kind: "signature"; patientId: string; title: string; lines?: { act: string; price: number }[] }
-  | { kind: "appointment"; patientId?: string }
+  | { kind: "appointment"; patientId?: string; day?: string; time?: string; practitioner?: string }
   | { kind: "plan"; patientId?: string }
   | { kind: "document"; patientId?: string; docId?: string }
   | { kind: "payment"; patientId?: string }
@@ -157,7 +161,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
         setModal({ kind: "patientBooking", patientId, act: prefill?.act, day: prefill?.day }),
       openSignature: (patientId, opts) =>
         setModal({ kind: "signature", patientId, title: opts.title, lines: opts.lines }),
-      openNewAppointment: (patientId) => setModal({ kind: "appointment", patientId }),
+      openNewAppointment: (patientId, slot) => setModal({ kind: "appointment", patientId, ...slot }),
       openNewPlan: (patientId) => setModal({ kind: "plan", patientId }),
       openNewDocument: (prefill) => setModal({ kind: "document", ...prefill }),
       openPayment: (patientId) => setModal({ kind: "payment", patientId }),
@@ -194,7 +198,12 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
         <SignatureModal onClose={close} toast={toast} patientId={modal.patientId} title={modal.title} lines={modal.lines} />
       )}
       {modal?.kind === "appointment" && (
-        <AppointmentModal onClose={close} toast={toast} prefill={modal.patientId} />
+        <AppointmentModal
+          onClose={close}
+          toast={toast}
+          prefill={modal.patientId}
+          slot={{ day: modal.day, time: modal.time, practitioner: modal.practitioner }}
+        />
       )}
       {modal?.kind === "plan" && (
         <PlanModal onClose={close} toast={toast} prefill={modal.patientId} sendDevis={sendDevis} />
@@ -587,16 +596,34 @@ function PatientModal({
 /* New appointment                                                     */
 /* ------------------------------------------------------------------ */
 
-function AppointmentModal({ onClose, toast, prefill }: Common & { prefill?: string }) {
+function AppointmentModal({
+  onClose,
+  toast,
+  prefill,
+  slot,
+}: Common & { prefill?: string; slot?: { day?: string; time?: string; practitioner?: string } }) {
   const { t } = useApp();
-  const { patients, addAppointment, addPatient, patientById } = useData();
+  const { patients, appointments, addAppointment, addPatient, patientById } = useData();
   const target = usePatientTarget(prefill, patients);
-  const [day, setDay] = useState(TODAY_ISO);
-  const [time, setTime] = useState("09:30");
+  const [day, setDay] = useState(slot?.day ?? TODAY_ISO);
+  const [time, setTime] = useState(slot?.time ?? "09:30");
   const [duration, setDuration] = useState("30");
   const [act, setAct] = useState("");
-  const [practitioner, setPractitioner] = useState(PRACTITIONERS[0]);
+  const [practitioner, setPractitioner] = useState(slot?.practitioner ?? PRACTITIONERS[0]);
   const [busy, setBusy] = useState(false);
+
+  // Avertit d'un chevauchement au lieu de le laisser se produire en silence :
+  // deux patients au même fauteuil à la même heure, c'est la faute que le
+  // logiciel doit attraper avant le secrétariat.
+  const conflict = useMemo(() => {
+    const start = Number(time.slice(0, 2)) + Number(time.slice(3, 5)) / 60;
+    const end = start + (Number(duration) || 30) / 60;
+    return appointments.find((a) => {
+      if (a.day !== day || a.practitioner !== practitioner || a.status === "cancelled") return false;
+      const s = Number(a.time.slice(0, 2)) + Number(a.time.slice(3, 5)) / 60;
+      return s < end && s + a.duration / 60 > start;
+    });
+  }, [appointments, day, time, duration, practitioner]);
 
   const canSubmit = !!act.trim() && !!day && targetReady(target);
 
@@ -639,6 +666,17 @@ function AppointmentModal({ onClose, toast, prefill }: Common & { prefill?: stri
     >
       <div className="space-y-4">
         <PatientTargetFields target={target} patients={patients} t={t} />
+        {conflict && (
+          <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              <span className="font-semibold">{t("cal.conflict")}</span>
+              <span className="block text-xs text-amber-700">
+                {conflict.time} · {conflict.patient} — {conflict.act}
+              </span>
+            </span>
+          </div>
+        )}
         <Field label={t("appt.day")} required hint={isoToLabel(day)}>
           <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} />
         </Field>

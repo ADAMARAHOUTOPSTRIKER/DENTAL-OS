@@ -8,22 +8,71 @@ import { Button } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/app/blocks";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
-import { PRACTITIONERS, TODAY_ISO } from "@/lib/data";
+import { PRACTITIONERS, TODAY_ISO, type Appointment } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
-const START = 9; // 09:00
-const END = 17.5; // 17:30
+const OPEN_FROM = 9; // ouverture habituelle
+const OPEN_TO = 17.5; // fermeture habituelle
 const PX_PER_HOUR = 96;
 
-function toTop(time: string) {
+/** Heure décimale d'un « HH:MM » (09:30 → 9.5). */
+function hourOf(time: string) {
   const [h, m] = time.split(":").map(Number);
-  return (h + m / 60 - START) * PX_PER_HOUR;
+  return h + m / 60;
 }
 
 const COLORS: Record<string, string> = {
   "Dr. Bennani": "from-teal-400/90 to-teal-600/90",
   "Dr. El Amrani": "from-amber-400/90 to-amber-600/90",
 };
+
+/** Pastille de statut lisible d'un coup d'œil sur le bloc. */
+const STATUS_DOT: Record<string, string> = {
+  confirmed: "bg-white",
+  pending: "bg-amber-200",
+  arrived: "bg-sky-200",
+  completed: "bg-white/40",
+  no_show: "bg-rose-300",
+};
+
+/**
+ * Répartit les rendez-vous qui se chevauchent en colonnes.
+ *
+ * Empilés, deux rendez-vous à la même heure se recouvraient : le second
+ * devenait invisible, et le praticien ne voyait pas qu'il avait un conflit —
+ * exactement ce qu'un agenda doit rendre évident.
+ */
+function layoutOverlaps(items: Appointment[]) {
+  const sorted = [...items].sort((a, b) => a.time.localeCompare(b.time));
+  const placed: { appt: Appointment; col: number; cols: number }[] = [];
+  let cluster: { appt: Appointment; col: number; cols: number }[] = [];
+  let clusterEnd = -Infinity;
+
+  const endOf = (a: Appointment) => hourOf(a.time) + a.duration / 60;
+
+  const flush = () => {
+    if (!cluster.length) return;
+    const cols = Math.max(...cluster.map((x) => x.col)) + 1;
+    cluster.forEach((x) => placed.push({ ...x, cols }));
+    cluster = [];
+  };
+
+  for (const appt of sorted) {
+    const start = hourOf(appt.time);
+    if (start >= clusterEnd) {
+      flush();
+      clusterEnd = endOf(appt);
+    } else {
+      clusterEnd = Math.max(clusterEnd, endOf(appt));
+    }
+    const busy = new Set(cluster.filter((x) => endOf(x.appt) > start).map((x) => x.col));
+    let col = 0;
+    while (busy.has(col)) col++;
+    cluster.push({ appt, col, cols: 1 });
+  }
+  flush();
+  return placed;
+}
 
 // ---- date helpers (UTC-based to avoid timezone drift) ----
 function addDays(iso: string, n: number) {
@@ -58,27 +107,57 @@ export default function CalendarPage() {
     const id = setInterval(update, 60_000);
     return () => clearInterval(id);
   }, []);
-  const showNow = selectedDay === TODAY_ISO && nowFrac !== null;
-  // Clamp to business hours so the live line stays on-grid at any real time.
-  const nowTop =
-    nowFrac !== null ? (Math.min(END, Math.max(START, nowFrac)) - START) * PX_PER_HOUR : 0;
-
   const weekStart = useMemo(() => mondayOf(selectedDay), [selectedDay]);
   const weekDays = useMemo(
     () => Array.from({ length: 6 }, (_, i) => addDays(weekStart, i)), // Mon–Sat
     [weekStart]
   );
 
-  const hours: number[] = [];
-  for (let h = START; h <= END; h++) hours.push(h);
-
   // Appointment count per day (for the week strip badges).
   const countFor = (iso: string) =>
     appointments.filter((a) => a.day === iso && a.status !== "cancelled").length;
 
-  const dayAppts = appointments.filter(
-    (a) => a.day === selectedDay && a.status !== "cancelled"
+  const dayAppts = useMemo(
+    () => appointments.filter((a) => a.day === selectedDay && a.status !== "cancelled"),
+    [appointments, selectedDay]
   );
+
+  // Les bornes de la grille suivent la journée réelle. Fixées à 9h–17h30, une
+  // urgence de 8h ou une fin de séance à 19h disparaissait purement et
+  // simplement de l'écran, sans le moindre signal.
+  const { START, END } = useMemo(() => {
+    let start = OPEN_FROM;
+    let end = OPEN_TO;
+    dayAppts.forEach((a) => {
+      start = Math.min(start, Math.floor(hourOf(a.time)));
+      end = Math.max(end, Math.ceil(hourOf(a.time) + a.duration / 60));
+    });
+    return { START: start, END: end };
+  }, [dayAppts]);
+
+  const showNow = selectedDay === TODAY_ISO && nowFrac !== null;
+  // Clamp to business hours so the live line stays on-grid at any real time.
+  const nowTop =
+    nowFrac !== null ? (Math.min(END, Math.max(START, nowFrac)) - START) * PX_PER_HOUR : 0;
+
+  const hours: number[] = [];
+  for (let h = START; h <= END; h++) hours.push(h);
+
+  const toTop = (time: string) => (hourOf(time) - START) * PX_PER_HOUR;
+
+  // Cliquer un créneau vide ouvre la création au bon jour, à la bonne heure et
+  // chez le bon praticien : c'est le geste qu'un secrétariat fait cent fois.
+  const createAt = (practitioner: string, offsetY: number) => {
+    const raw = START + offsetY / PX_PER_HOUR;
+    const snapped = Math.round(raw * 2) / 2; // quart d'heure trop fin, demi-heure suffit
+    const h = Math.floor(snapped);
+    const m = snapped % 1 ? "30" : "00";
+    ui.openNewAppointment(undefined, {
+      day: selectedDay,
+      time: `${String(h).padStart(2, "0")}:${m}`,
+      practitioner,
+    });
+  };
 
   const dateLabel = new Intl.DateTimeFormat(lang === "ar" ? "ar-MA" : "fr-MA", {
     weekday: "long",
@@ -205,37 +284,63 @@ export default function CalendarPage() {
 
           {/* practitioner columns */}
           {PRACTITIONERS.map((p) => (
-            <div key={p} className="relative border-e border-black/5 last:border-e-0" style={{ height: (END - START) * PX_PER_HOUR }}>
+            <div
+              key={p}
+              onClick={(e) => {
+                // Seul un clic sur le fond crée : les blocs stoppent la propagation.
+                const box = e.currentTarget.getBoundingClientRect();
+                createAt(p, e.clientY - box.top);
+              }}
+              className="group/col relative cursor-copy border-e border-black/5 last:border-e-0"
+              style={{ height: (END - START) * PX_PER_HOUR }}
+            >
               {hours.map((h) => (
                 <div key={h} className="absolute inset-x-0 border-t border-black/[0.04]" style={{ top: (h - START) * PX_PER_HOUR }} />
               ))}
               {showNow && (
                 <div className="pointer-events-none absolute inset-x-0 z-20 h-px bg-rose-500/70" style={{ top: nowTop }} />
               )}
-              {dayAppts
-                .filter((a) => a.practitioner === p)
-                .map((a) => (
-                  <button
-                    key={a.id}
-                    onClick={() => router.push(`/app/patients?id=${a.patientId}`)}
-                    className={cn(
-                      "fade-in group absolute inset-x-1.5 overflow-hidden rounded-xl bg-gradient-to-br p-2.5 text-start text-white shadow-md ring-1 ring-white/10 transition-all duration-200 hover:z-20 hover:scale-[1.03] hover:shadow-xl hover:ring-white/25",
-                      COLORS[p]
+              {layoutOverlaps(dayAppts.filter((a) => a.practitioner === p)).map(({ appt: a, col, cols }) => (
+                <button
+                  key={a.id}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/app/patients?id=${a.patientId}`);
+                  }}
+                  title={`${a.time} · ${a.patient} — ${a.act}`}
+                  className={cn(
+                    "fade-in group absolute overflow-hidden rounded-xl bg-gradient-to-br p-2.5 text-start text-white shadow-md ring-1 ring-white/10 transition-all duration-200 hover:z-20 hover:shadow-xl hover:ring-white/25",
+                    COLORS[p],
+                    a.status === "completed" && "opacity-70"
+                  )}
+                  style={{
+                    top: toTop(a.time) + 2,
+                    height: (a.duration / 60) * PX_PER_HOUR - 4,
+                    // Les rendez-vous d'un même créneau se partagent la largeur.
+                    insetInlineStart: `calc(${(col / cols) * 100}% + 6px)`,
+                    width: `calc(${100 / cols}% - 12px)`,
+                  }}
+                >
+                  <div className="pointer-events-none absolute inset-0 bg-white/0 transition-colors duration-200 group-hover:bg-white/10" />
+                  <div className="relative flex items-center gap-1.5 text-xs font-bold">
+                    <span
+                      className={cn("h-1.5 w-1.5 shrink-0 rounded-full", STATUS_DOT[a.status] ?? "bg-white")}
+                      title={t(`status.${a.status}`)}
+                    />
+                    <span className="truncate">{a.time} · {a.patient}</span>
+                    {a.patientConfirmed && (
+                      <span className="grid h-3.5 w-3.5 shrink-0 place-items-center rounded-full bg-white/25" title={t("status.confirmed")}>
+                        <Check className="h-2.5 w-2.5" />
+                      </span>
                     )}
-                    style={{ top: toTop(a.time) + 2, height: (a.duration / 60) * PX_PER_HOUR - 4 }}
-                  >
-                    <div className="pointer-events-none absolute inset-0 bg-white/0 transition-colors duration-200 group-hover:bg-white/10" />
-                    <div className="relative flex items-center gap-1.5 text-xs font-bold">
-                      {a.time} · {a.patient}
-                      {a.patientConfirmed && (
-                        <span className="grid h-3.5 w-3.5 place-items-center rounded-full bg-white/25" title="Confirmé par le patient">
-                          <Check className="h-2.5 w-2.5" />
-                        </span>
-                      )}
-                    </div>
-                    <div className="relative truncate text-[11px] text-white/85">{a.act}</div>
-                  </button>
-                ))}
+                  </div>
+                  <div className="relative truncate text-[11px] text-white/85">{a.act}</div>
+                </button>
+              ))}
+              {/* Invite discrète : le fond est cliquable, il faut le dire. */}
+              <span className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[11px] font-medium text-teal-600 opacity-0 transition-opacity group-hover/col:opacity-100">
+                + {t("cal.clickslot")}
+              </span>
             </div>
           ))}
         </div>

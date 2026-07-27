@@ -619,9 +619,11 @@ function buildBackgroundCohort() {
     }
 
     // Historique de rendez-vous : c'est lui qui fait vivre le taux de no-show.
-    const past = between(1, 3);
+    // Il court sur six mois pour que la comparaison « 90 derniers jours contre
+    // les 90 précédents » ait de quoi se calculer des deux côtés.
+    const past = between(2, 4);
     for (let k = 0; k < past; k++) {
-      const daysAgo = between(3, 88);
+      const daysAgo = between(3, 178);
       const roll = rnd();
       bgAppointments.push({
         id: `bga${i}_${k}`,
@@ -659,6 +661,24 @@ function buildBackgroundCohort() {
 }
 
 const COHORT = buildBackgroundCohort();
+
+/**
+ * La patientèle de fond, déjà décalée sur le jour réel.
+ *
+ * Elle n'est PAS stockée dans Supabase : ce sont des volumes, pas des
+ * dossiers, et les garder côté client évite d'alourdir la base pour rien. En
+ * revanche il faut les rajouter aux lignes venues du serveur, sinon la démo
+ * live retombe à dix patients et 9 000 MAD de chiffre d'affaires.
+ */
+export const BACKGROUND = {
+  patients: COHORT.bgPatients.map((p) => ({
+    ...p,
+    lastVisit: rebaseLoose(p.lastVisit) ?? p.lastVisit,
+    nextVisit: p.nextVisit ? rebaseLoose(p.nextVisit) : null,
+  })),
+  appointments: COHORT.bgAppointments.map((a) => ({ ...a, day: rebase(a.day) })),
+  payments: COHORT.bgPayments.map((p) => ({ ...p, date: rebaseLoose(p.date) ?? p.date })),
+};
 
 /* ================================================================== */
 /* Normalisation : tout en ISO, tout décalé sur le jour réel           */
