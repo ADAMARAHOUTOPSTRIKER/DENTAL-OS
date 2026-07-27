@@ -14,7 +14,7 @@ import {
   Bar,
   CartesianGrid,
 } from "recharts";
-import { revenueTrend as seedTrend, actsMix as seedMix, weeklyLoad } from "@/lib/data";
+import { revenueTrend as seedTrend, actsMix as seedMix } from "@/lib/data";
 import { mad } from "@/lib/utils";
 
 const axis = { fontSize: 11, fill: "#0d304066" };
@@ -98,17 +98,24 @@ export function ActsDonut({ data }: { data?: { name: string; value: number; colo
   );
 }
 
-export function WeeklyBars() {
+/**
+ * Charge de la semaine.
+ *
+ * Les valeurs étaient écrites en dur : l'histogramme annonçait 111 rendez-vous
+ * pendant que le KPI juste au-dessus en affichait 7. Il se nourrit maintenant
+ * de `stats.weeklyLoad`, calculé sur les rendez-vous réels.
+ */
+export function WeeklyBars({ data, unit }: { data: { d: string; v: number }[]; unit: string }) {
   return (
     <ResponsiveContainer width="100%" height={200}>
-      <BarChart data={weeklyLoad} margin={{ top: 10, right: 8, left: -22, bottom: 0 }}>
+      <BarChart data={data} margin={{ top: 10, right: 8, left: -22, bottom: 0 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#0d304012" vertical={false} />
         <XAxis dataKey="d" tick={axis} axisLine={false} tickLine={false} />
         <YAxis tick={axis} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={{ fill: "#2ec4b60d" }}
           contentStyle={{ borderRadius: 12, border: "1px solid #0d304014", fontSize: 12 }}
-          formatter={((v: number) => [`${v} RDV`, ""]) as never}
+          formatter={((v: number) => [`${v} ${unit}`, ""]) as never}
         />
         <Bar dataKey="v" radius={[6, 6, 0, 0]} isAnimationActive={false} fill="#2ec4b6" barSize={26} />
       </BarChart>
