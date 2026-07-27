@@ -24,6 +24,7 @@ export default function Reveal({
     if (!el) return;
     el.style.transitionDelay = `${delay}s`;
 
+    let observed = false;
     const reveal = () => el.classList.add("is-visible");
 
     if (typeof IntersectionObserver === "undefined") {
@@ -32,6 +33,7 @@ export default function Reveal({
     }
     const io = new IntersectionObserver(
       (entries) => {
+        observed = true;
         entries.forEach((e) => {
           if (e.isIntersecting) {
             reveal();
@@ -43,8 +45,13 @@ export default function Reveal({
     );
     io.observe(el);
 
-    // Safety net: if still hidden shortly after mount, reveal anyway.
-    const t = window.setTimeout(reveal, 1200);
+    // Filet de sécurité — mais seulement si l'observateur ne s'est jamais
+    // exprimé. Déclenché sans condition, il révélait au bout d'1,2 s tout le
+    // bas de page : l'apparition au défilement ne jouait donc jamais, et le
+    // visiteur découvrait une page déjà entièrement montée.
+    const t = window.setTimeout(() => {
+      if (!observed) reveal();
+    }, 1200);
     return () => {
       io.disconnect();
       window.clearTimeout(t);

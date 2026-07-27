@@ -297,24 +297,24 @@ function Hero() {
           </div>
           {/* Floating glass chips around the tooth */}
           <FloatingChip
-            className="left-2 top-10"
+            className="start-2 top-10"
             icon={<CalendarDays className="h-4 w-4 text-teal-500" />}
-            title="Rappel WhatsApp"
-            sub="Envoyé ✓ · 11:30"
+            title={t("chip.reminder")}
+            sub={t("chip.reminder.sub")}
             delay={1.1}
           />
           <FloatingChip
-            className="right-0 top-1/2"
+            className="end-0 top-1/2"
             icon={<Wallet className="h-4 w-4 text-amber-500" />}
-            title="Paiement enregistré"
-            sub="3 800 MAD · Carte"
+            title={t("chip.payment")}
+            sub={t("chip.payment.sub")}
             delay={1.35}
           />
           <FloatingChip
-            className="bottom-6 left-6"
+            className="bottom-6 start-6"
             icon={<Check className="h-4 w-4 text-teal-500" />}
-            title="Devis accepté"
-            sub="Youssef B. · Implant"
+            title={t("chip.devis")}
+            sub={t("chip.devis.sub")}
             delay={1.6}
           />
         </div>
@@ -511,10 +511,13 @@ function Preview() {
 /* ============================ PRICING ============================ */
 function Pricing() {
   const { t } = useApp();
+  // Toute cette section était écrite en français en dur : un cabinet
+  // arabophone découvrait une page à moitié traduite, à l'endroit précis où il
+  // décide d'acheter.
   const tiers = [
-    { name: "Solo", price: "300", desc: "Cabinet à un praticien", feats: ["Agenda & rappels", "Dossiers patients", "Devis & paiements", "1 utilisateur"], featured: false },
-    { name: "Cabinet", price: "600", desc: "Le choix des cabinets qui grandissent", feats: ["Tout Solo, plus :", "Coffre d’imagerie", "Comptes famille & rappels", "Analytique complète", "Jusqu’à 6 utilisateurs"], featured: true },
-    { name: "Groupe", price: "Sur devis", desc: "Plusieurs sites & spécialités", feats: ["Tout Cabinet, plus :", "Multi-cabinets", "Intégrations AMO", "Support prioritaire"], featured: false },
+    { key: "solo", price: "300", featured: false, feats: 4 },
+    { key: "cabinet", price: "600", featured: true, feats: 5 },
+    { key: "groupe", price: null, featured: false, feats: 4 },
   ];
   return (
     <section id="pricing" className="bg-sand-50 py-24 sm:py-32">
@@ -524,12 +527,12 @@ function Pricing() {
             {t("nav.pricing")}
           </span>
           <h2 className="mt-3 font-display text-4xl font-bold tracking-tight text-ink-900 sm:text-5xl text-balance">
-            Un prix simple, en dirhams
+            {t("pricing.title")}
           </h2>
         </Reveal>
         <div className="mt-14 grid gap-6 lg:grid-cols-3">
           {tiers.map((tier, i) => (
-            <Reveal key={tier.name} delay={i * 0.08}>
+            <Reveal key={tier.key} delay={i * 0.08}>
               <div
                 className={cn(
                   "relative flex h-full flex-col rounded-2xl border p-7 transition-all duration-300",
@@ -539,35 +542,46 @@ function Pricing() {
                 )}
               >
                 {tier.featured && (
-                  <span className="absolute -top-3 left-7 rounded-full bg-gradient-to-r from-teal-400 to-amber-400 px-3 py-1 text-xs font-bold text-ink-950">
-                    Populaire
+                  <span className="absolute -top-3 start-7 rounded-full bg-gradient-to-r from-teal-400 to-amber-400 px-3 py-1 text-xs font-bold text-ink-950">
+                    {t("pricing.popular")}
                   </span>
                 )}
-                <h3 className="font-display text-xl font-bold">{tier.name}</h3>
+                <h3 className="font-display text-xl font-bold">{t(`pricing.${tier.key}.name`)}</h3>
                 <p className={cn("mt-1 text-sm", tier.featured ? "text-white/50" : "text-ink-800/50")}>
-                  {tier.desc}
+                  {t(`pricing.${tier.key}.desc`)}
                 </p>
                 <div className="mt-5 flex items-end gap-1.5">
-                  <span className="font-display text-4xl font-bold">{tier.price}</span>
-                  {tier.price !== "Sur devis" && (
+                  <span className="font-display text-4xl font-bold">
+                    {tier.price ?? t("pricing.onquote")}
+                  </span>
+                  {tier.price && (
                     <span className={cn("mb-1.5 text-sm", tier.featured ? "text-white/50" : "text-ink-800/50")}>
-                      MAD / mois
+                      {t("pricing.permonth")}
                     </span>
                   )}
                 </div>
                 <ul className="mt-6 flex-1 space-y-3">
-                  {tier.feats.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm">
+                  {Array.from({ length: tier.feats }, (_, k) => (
+                    <li key={k} className="flex items-start gap-2.5 text-sm">
                       <Check className={cn("mt-0.5 h-4 w-4 shrink-0", tier.featured ? "text-teal-300" : "text-teal-500")} />
-                      <span className={tier.featured ? "text-white/80" : "text-ink-800/70"}>{f}</span>
+                      <span className={tier.featured ? "text-white/80" : "text-ink-800/70"}>
+                        {t(`pricing.${tier.key}.f${k + 1}`)}
+                      </span>
                     </li>
                   ))}
                 </ul>
-                <Link href="/app" className="mt-7">
-                  <Button variant={tier.featured ? "primary" : "outline"} className="w-full">
-                    {t("nav.demo")}
-                  </Button>
-                </Link>
+                {/* L'offre « sur devis » doit mener au contact, pas à la démo. */}
+                {tier.price ? (
+                  <Link href="/app" className="mt-7">
+                    <Button variant={tier.featured ? "primary" : "outline"} className="w-full">
+                      {t("nav.demo")}
+                    </Button>
+                  </Link>
+                ) : (
+                  <a href="#contact" className="mt-7 block">
+                    <Button variant="outline" className="w-full">{t("pricing.talk")}</Button>
+                  </a>
+                )}
               </div>
             </Reveal>
           ))}
