@@ -10,6 +10,7 @@ import {
   MessageSquare,
   BellRing,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill, Button } from "@/components/ui/primitives";
@@ -38,6 +39,7 @@ function RowMenu({ patient }: { patient: Patient }) {
   }, []);
 
   const items = [
+    { icon: Pencil, label: t("patient.edit"), run: () => ui.openEditPatient(patient) },
     { icon: CalendarPlus, label: t("act.book"), run: () => ui.openNewAppointment(patient.id) },
     { icon: MessageSquare, label: t("act.message"), run: () => ui.openMessage(patient) },
     { icon: BellRing, label: t("act.reminder"), run: () => ui.openMessage(patient, { reminder: true }) },

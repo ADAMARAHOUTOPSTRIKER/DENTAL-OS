@@ -2,10 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Les variables --font-* sont posées sur <body> par next/font (app/layout.tsx) ;
+   les redéclarer ici masquerait leur origine réelle. */
 :root {
-  --font-display: "Space Grotesk", system-ui, sans-serif;
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-arabic: "Noto Kufi Arabic", system-ui, sans-serif;
   --surface: #fbfaf7;
 }
 
@@ -16,17 +15,18 @@
 
 html {
   scroll-behavior: smooth;
+  /* Équivalent standard de ::-webkit-scrollbar (Firefox) — hérité partout. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(13, 48, 64, 0.18) transparent;
 }
 
 body {
   color: #08222e;
   background: var(--surface);
-  font-family: var(--font-sans);
 }
 
-[dir="rtl"] body,
-[dir="rtl"] {
-  font-family: var(--font-arabic);
+[dir="rtl"] body {
+  font-family: var(--font-arabic), system-ui, sans-serif;
 }
 
 /* Refined text selection */
@@ -39,7 +39,6 @@ body {
 :focus-visible {
   outline: 2px solid rgba(46, 196, 182, 0.65);
   outline-offset: 2px;
-  border-radius: 6px;
 }
 button:focus:not(:focus-visible),
 a:focus:not(:focus-visible) {
@@ -222,23 +221,23 @@ a:focus:not(:focus-visible) {
   opacity: 0;
   animation: riseIn 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+/* Le décalage de départ passe par une variable : une @keyframes ne peut pas
+   être surchargée sous un sélecteur, c'est le seul moyen d'inverser en RTL. */
 @keyframes slideInEnd {
   0% {
     opacity: 0;
-    transform: translateX(24px);
+    transform: translateX(var(--slide-from, 24px));
   }
   100% {
     opacity: 1;
     transform: translateX(0);
   }
 }
-[dir="rtl"] @keyframes slideInEnd {
-  0% {
-    transform: translateX(-24px);
-  }
-}
 .drawer-in {
   animation: slideInEnd 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+[dir="rtl"] .drawer-in {
+  --slide-from: -24px;
 }
 @keyframes fadeIn {
   from {
@@ -335,8 +334,12 @@ a:focus:not(:focus-visible) {
   *::before,
   *::after {
     animation-duration: 0.001ms !important;
+    /* Sans quoi les cartes à animation "both" restent invisibles
+       pendant tout leur animation-delay posé en ligne. */
+    animation-delay: 0ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
     scroll-behavior: auto !important;
   }
   .reveal {

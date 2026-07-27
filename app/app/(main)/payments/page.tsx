@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Banknote, CreditCard, FileCheck, ArrowLeftRight, Coins, Clock, Check, TrendingUp } from "lucide-react";
+import { Banknote, CreditCard, FileCheck, ArrowLeftRight, Coins, Clock, Check, TrendingUp, Printer } from "lucide-react";
+import { generateReceiptPDF } from "@/lib/pdf";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Button, Kpi } from "@/components/ui/primitives";
 import { PageHeader, SectionCard } from "@/components/app/blocks";
@@ -23,6 +24,16 @@ const METHOD_COLOR: Record<keyof typeof METHOD_ICON, string> = {
   cheque: "#ffa02e",
   transfer: "#14a89a",
 };
+
+/** Télécharge un fichier généré, sans passer par window.open (bloqué sur data:). */
+function download(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function PaymentsPage() {
   const { t, lang } = useApp();
@@ -62,6 +73,12 @@ export default function PaymentsPage() {
   // Les échéanciers se déduisent des plans acceptés : montant déjà réglé sur
   // le total du plan, et prochaine échéance = prochain rendez-vous du patient.
   // Rien n'est écrit en dur, la liste reste donc juste dans le temps.
+  const printReceipt = (p: Payment) => {
+    const { blob, filename } = generateReceiptPDF(p, patientById(p.patientId));
+    download(blob, filename);
+    toast(t("portal.receipt.done"));
+  };
+
   const installments = useMemo(
     () =>
       treatmentPlans
@@ -193,6 +210,16 @@ export default function PaymentsPage() {
                     <div className="truncate text-xs text-ink-800/50">{p.act} · {isoToLabel(p.date, lang)} · {t(`pay.${p.method}`)}</div>
                   </div>
                   <span className="font-semibold tabular-nums text-teal-600">+{mad(p.amount)}</span>
+                  {/* Le patient repart avec son reçu : le générateur PDF
+                      existait déjà mais n'était branché que côté portail. */}
+                  <button
+                    onClick={() => printReceipt(p)}
+                    title={t("portal.receipt")}
+                    aria-label={t("portal.receipt")}
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-ink-800/40 transition-colors hover:bg-white hover:text-teal-600"
+                  >
+                    <Printer className="h-4 w-4" />
+                  </button>
                 </li>
               );
             })}

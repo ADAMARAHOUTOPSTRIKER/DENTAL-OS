@@ -3,7 +3,6 @@ import type { Config } from "tailwindcss";
 const config: Config = {
   darkMode: "class",
   content: [
-    "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
     "./lib/**/*.{js,ts,jsx,tsx,mdx}",
@@ -44,6 +43,38 @@ const config: Config = {
           100: "#f5f2ea",
           200: "#eae4d5",
         },
+        // Neutre froid dérivé d'ink — pour les états « terminé » et les replis.
+        neutral: {
+          50: "#f4f6f7",
+          100: "#e9edee",
+          200: "#d4dde0",
+          300: "#aabbc1",
+          400: "#7d949c",
+          500: "#5c757e",
+          600: "#475e67",
+          700: "#3a4d55",
+        },
+        // Rouge d'alerte accordé à la chaleur d'amber/sand — annulé, impayé, négatif.
+        danger: {
+          50: "#fdf1ee",
+          100: "#fbdfd8",
+          200: "#f5b8ab",
+          300: "#ea8271",
+          400: "#dc5545",
+          500: "#c53a2b",
+          600: "#a52e22",
+          700: "#86271e",
+        },
+      },
+      // Échelle de superposition nommée — un cran par famille de surface.
+      zIndex: {
+        header: "30",
+        sidebar: "40",
+        panel: "45", // tiroir de dossier (PatientDrawer)
+        drawer: "55", // tiroir de navigation mobile, au-dessus des panneaux
+        modal: "60",
+        lightbox: "70",
+        toast: "80",
       },
       fontFamily: {
         display: ["var(--font-display)", "system-ui", "sans-serif"],

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   LayoutDashboard,
   CalendarDays,
@@ -294,6 +294,143 @@ function NewMenu() {
   );
 }
 
+/**
+ * Ce qui demande une action, maintenant.
+ *
+ * La cloche était décorative : un bouton sans clic, avec une pastille « non
+ * lu » qui ne s'effaçait jamais. Elle se nourrit désormais des vraies données
+ * du cabinet — présences à confirmer, rappels arrivés à échéance, impayés — et
+ * chaque ligne mène à l'écran concerné.
+ */
+function NotificationsMenu() {
+  const { t, lang, role } = useApp();
+  const { appointments, recalls, patients, patientById } = useData();
+  const ui = useUI();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [dismissed, setDismissed] = useState<string[]>([]);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, []);
+
+  const items = useMemo(() => {
+    if (role === "patient") return [];
+    const optedOut = new Set(patients.filter((p) => p.recallOptIn === false).map((p) => p.id));
+
+    const unconfirmed = appointments
+      .filter((a) => a.day === TODAY_ISO && a.status === "pending")
+      .map((a) => ({
+        id: `appt-${a.id}`,
+        tone: "amber" as const,
+        icon: CalendarDays,
+        title: t("notif.unconfirmed"),
+        body: `${a.patient} · ${a.time}`,
+        run: () => router.push("/app/calendar"),
+      }));
+
+    const due = recalls
+      .filter((r) => !r.reminderSent && !optedOut.has(r.patientId) && r.due <= TODAY_ISO)
+      .map((r) => ({
+        id: `recall-${r.patientId}-${r.reason}`,
+        tone: "teal" as const,
+        icon: Bell,
+        title: t("notif.recall"),
+        body: `${r.patient} · ${r.reason}`,
+        run: () => {
+          const p = patientById(r.patientId);
+          if (p) ui.openMessage(p, { recallReason: r.reason });
+        },
+      }));
+
+    const debts = patients
+      .filter((p) => p.balance > 3000)
+      .sort((a, b) => b.balance - a.balance)
+      .slice(0, 3)
+      .map((p) => ({
+        id: `debt-${p.id}`,
+        tone: "rose" as const,
+        icon: Wallet,
+        title: t("notif.unpaid"),
+        body: `${p.name} · ${mad(p.balance)} ${t("common.mad")}`,
+        run: () => router.push(`/app/patients?id=${p.id}`),
+      }));
+
+    return [...unconfirmed, ...due, ...debts].filter((n) => !dismissed.includes(n.id));
+  }, [role, appointments, recalls, patients, patientById, dismissed, t, ui, router]);
+
+  const TONE = {
+    amber: "bg-amber-50 text-amber-600",
+    teal: "bg-teal-50 text-teal-600",
+    rose: "bg-rose-50 text-rose-600",
+  };
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        aria-label={t("notif.title")}
+        className="relative grid h-9 w-9 place-items-center rounded-lg text-ink-800/60 transition-colors hover:bg-ink-900/5"
+      >
+        <Bell className="h-5 w-5" />
+        {/* La pastille ne s'allume que s'il reste vraiment quelque chose à traiter. */}
+        {items.length > 0 && (
+          <span className="absolute end-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-amber-500 px-1 text-[10px] font-bold text-white ring-2 ring-white">
+            {items.length}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <div className="pop-in absolute end-0 top-full z-50 mt-2 w-[21rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl border border-black/5 bg-white shadow-float">
+          <div className="flex items-center justify-between border-b border-black/5 px-4 py-2.5">
+            <span className="text-sm font-semibold text-ink-900">{t("notif.title")}</span>
+            <span className="text-xs text-ink-800/40">{isoToWeekday(TODAY_ISO, lang)}</span>
+          </div>
+          {items.length ? (
+            <ul className="max-h-96 overflow-y-auto p-1">
+              {items.map((n) => (
+                <li key={n.id} className="flex items-start gap-2 rounded-lg p-1 hover:bg-sand-50">
+                  <button
+                    onClick={() => {
+                      setOpen(false);
+                      n.run();
+                    }}
+                    className="flex min-w-0 flex-1 items-start gap-2.5 rounded-lg px-2 py-1.5 text-start"
+                  >
+                    <span className={cn("mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-lg", TONE[n.tone])}>
+                      <n.icon className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-medium text-ink-900">{n.title}</span>
+                      <span className="block truncate text-xs text-ink-800/50">{n.body}</span>
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => setDismissed((d) => [...d, n.id])}
+                    title={t("notif.dismiss")}
+                    aria-label={t("notif.dismiss")}
+                    className="mt-1 grid h-6 w-6 shrink-0 place-items-center rounded text-ink-800/30 hover:text-ink-900"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="px-4 py-8 text-center text-sm text-ink-800/40">{t("notif.empty")}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Topbar({ onMenu }: { onMenu: () => void }) {
   const { toggleLang, lang, role } = useApp();
   const today = isoToWeekday(TODAY_ISO, lang);
@@ -324,10 +461,7 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
         {lang === "fr" ? "ع" : "FR"}
       </button>
 
-      <button className="relative grid h-9 w-9 place-items-center rounded-lg text-ink-800/60 hover:bg-ink-900/5">
-        <Bell className="h-5 w-5" />
-        <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-500 ring-2 ring-white" />
-      </button>
+      <NotificationsMenu />
 
       {canCreate && <NewMenu />}
     </header>
@@ -336,13 +470,17 @@ function Topbar({ onMenu }: { onMenu: () => void }) {
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { role } = useApp();
+  // Le logo ramène à l'accueil de CHAQUE rôle : un patient n'a rien à faire
+  // sur le tableau de bord du cabinet.
+  const home = role === "patient" ? "/app/portal" : "/app/dashboard";
 
   return (
     <div className="min-h-screen bg-sand-50">
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 start-0 z-40 hidden w-64 flex-col border-e border-black/5 bg-white p-4 lg:flex">
         <div className="px-2 py-2">
-          <Link href="/app/dashboard">
+          <Link href={home}>
             <Logo />
           </Link>
         </div>

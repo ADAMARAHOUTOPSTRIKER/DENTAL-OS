@@ -9,6 +9,7 @@ import {
   useCallback,
 } from "react";
 import { fetchClinicData, SEED, type ClinicData } from "@/lib/db";
+import { useApp } from "@/lib/i18n";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import {
   categorizeAct,
@@ -42,6 +43,10 @@ export interface Stats {
   noShowDelta: number;
   acceptanceDelta: number;
   revenueTrend: { m: string; v: number }[];
+  /** Charge des 7 derniers jours — alimente l'histogramme de l'analytique. */
+  weeklyLoad: { d: string; v: number }[];
+  /** Cumul encaissé depuis l'ouverture (distinct du revenu du mois). */
+  collectedAllTime: number;
   actsMix: { name: string; value: number; color: string }[];
 }
 
@@ -115,6 +120,9 @@ interface DataStore extends ClinicData {
   }) => Promise<ClinicDocument>;
   addFilesToDocument: (docId: string, files: DocFile[]) => Promise<void>;
 
+  updateTreatmentPlan: (id: string, patch: Partial<TreatmentPlan>) => Promise<void>;
+  deleteTreatmentPlan: (id: string) => Promise<void>;
+
   markRecallSent: (patientId: string) => Promise<void>;
 
   /** Repart du jeu de demonstration d'origine (utile en pleine presentation). */
@@ -167,6 +175,7 @@ function persist(fn: () => unknown) {
 /* ------------------------------------------------------------------ */
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
+  const { lang } = useApp();
   const [data, setData] = useState<ClinicData>(SEED);
   const [loading, setLoading] = useState(isSupabaseConfigured);
   const [source, setSource] = useState<"supabase" | "seed">(
@@ -612,16 +621,41 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   );
 
   const addFilesToDocument = useCallback(async (docId: string, files: DocFile[]) => {
-    let next: DocFile[] = [];
+    // La liste complète se calcule ici, hors de l'updater : React peut appeler
+    // ce dernier plus tard (ou deux fois en StrictMode), et persist() partait
+    // alors avec un tableau vide — le dossier se vidait côté serveur.
+    setData((d) => {
+      const documents = d.documents.map((doc) =>
+        doc.id === docId ? { ...doc, files: [...doc.files, ...files] } : doc
+      );
+      const updated = documents.find((doc) => doc.id === docId);
+      if (updated) {
+        persist(() => supabase!.from("documents").update({ files: updated.files }).eq("id", docId));
+      }
+      return { ...d, documents };
+    });
+  }, []);
+
+  /** Corriger un devis : un plan de traitement se révise, il ne se refait pas. */
+  const updateTreatmentPlan = useCallback(async (id: string, patch: Partial<TreatmentPlan>) => {
     setData((d) => ({
       ...d,
-      documents: d.documents.map((doc) => {
-        if (doc.id !== docId) return doc;
-        next = [...doc.files, ...files];
-        return { ...doc, files: next };
-      }),
+      treatmentPlans: d.treatmentPlans.map((t) => (t.id === id ? { ...t, ...patch } : t)),
     }));
-    persist(() => supabase!.from("documents").update({ files: next }).eq("id", docId));
+    persist(() =>
+      supabase!
+        .from("treatment_plans")
+        .update({ status: patch.status, patient: patch.patient })
+        .eq("id", id)
+    );
+  }, []);
+
+  const deleteTreatmentPlan = useCallback(async (id: string) => {
+    setData((d) => ({ ...d, treatmentPlans: d.treatmentPlans.filter((t) => t.id !== id) }));
+    persist(async () => {
+      await supabase!.from("treatment_plan_lines").delete().eq("plan_id", id);
+      await supabase!.from("treatment_plans").delete().eq("id", id);
+    });
   }, []);
 
   const markRecallSent = useCallback(async (patientId: string) => {
@@ -647,26 +681,95 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
   const stats = useMemo<Stats>(() => {
     const { patients, appointments, treatmentPlans, payments } = data;
-    const collected = payments.reduce((s, p) => s + p.amount, 0);
+    const today = TODAY_ISO;
+    const month = today.slice(0, 7);
+    const dayMs = 86_400_000;
+    const ago = (n: number) =>
+      new Date(Date.parse(today + "T00:00:00Z") - n * dayMs).toISOString().slice(0, 10);
+
+    // « Revenu du mois » doit être le mois en cours, pas le cumul de tout
+    // l'historique : sinon le chiffre gonfle indéfiniment et ne veut plus rien
+    // dire.
+    const sumIn = (from: string, to: string) =>
+      payments.filter((p) => p.date >= from && p.date <= to).reduce((s, p) => s + p.amount, 0);
+
+    const collected = payments
+      .filter((p) => p.date.startsWith(month))
+      .reduce((s, p) => s + p.amount, 0);
+
     const outstanding = patients.reduce((s, p) => s + p.balance, 0);
+
+    // Un patient est « actif » s'il est venu dans l'année : c'est la définition
+    // qu'emploient les cabinets, et elle ne compte pas les dossiers dormants.
+    const yearAgo = ago(365);
+    const activePatients = patients.filter((p) => p.lastVisit >= yearAgo).length;
+
     const totalPlans = treatmentPlans.length;
     const accepted = treatmentPlans.filter((p) => p.status === "accepted").length;
     const acceptance = totalPlans ? Math.round((accepted / totalPlans) * 100) : 0;
-    const appointmentsCount = appointments.length;
-    const cancelled = appointments.filter((a) => a.status === "cancelled").length;
-    const noShow = appointmentsCount
-      ? +((cancelled / appointmentsCount) * 100).toFixed(1)
-      : 0;
+
+    // Rendez-vous de la semaine glissante (les 7 prochains jours).
+    const weekEnd = ago(-6);
+    const appointmentsCount = appointments.filter((a) => a.day >= today && a.day <= weekEnd).length;
+
+    // Taux d'absence : rapporté aux seuls rendez-vous passés des 90 derniers
+    // jours. Les rendez-vous à venir ne peuvent pas être des absences.
+    const window90 = ago(90);
+    const pastAppts = appointments.filter((a) => a.day >= window90 && a.day < today);
+    const noShows = pastAppts.filter((a) => a.status === "no_show").length;
+    const noShow = pastAppts.length ? +((noShows / pastAppts.length) * 100).toFixed(1) : 0;
+
+    const todaysPatientIds = new Set(
+      appointments.filter((a) => a.day === today).map((a) => a.patientId)
+    );
     const dueToday = patients
-      .filter((p) => appointments.some((a) => a.patientId === p.id))
+      .filter((p) => todaysPatientIds.has(p.id))
       .reduce((s, p) => s + p.balance, 0);
 
-    const months = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun"];
-    const base = [7200, 7900, 7600, 8300, 8800, 8600];
-    const revenueTrend = [
-      ...base.map((v, i) => ({ m: months[i], v })),
-      { m: "Jul", v: collected },
-    ];
+    // Sept derniers mois glissants, libellés dans la langue de l'interface :
+    // la courbe suit donc le calendrier réel au lieu d'être figée sur Jan→Jul.
+    const monthFmt = new Intl.DateTimeFormat(lang === "ar" ? "ar-MA" : "fr-MA", {
+      month: "short",
+      timeZone: "UTC",
+    });
+    const [y0, m0] = today.split("-").map(Number);
+    const revenueTrend = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(Date.UTC(y0, m0 - 1 - (6 - i), 1));
+      const key = d.toISOString().slice(0, 7);
+      return {
+        m: monthFmt.format(d),
+        v: payments.filter((p) => p.date.startsWith(key)).reduce((s, p) => s + p.amount, 0),
+      };
+    });
+    const prevMonth = revenueTrend[revenueTrend.length - 2]?.v ?? 0;
+    const revenueDelta = prevMonth ? +(((collected - prevMonth) / prevMonth) * 100).toFixed(1) : 0;
+
+    // Charge de la semaine écoulée, jour par jour — l'histogramme s'appuyait
+    // jusqu'ici sur des valeurs écrites en dur qui contredisaient les KPI.
+    const dayFmt = new Intl.DateTimeFormat(lang === "ar" ? "ar-MA" : "fr-MA", {
+      weekday: "short",
+      timeZone: "UTC",
+    });
+    const weeklyLoad = Array.from({ length: 7 }, (_, i) => {
+      const iso = ago(6 - i);
+      return {
+        d: dayFmt.format(new Date(iso + "T12:00:00Z")),
+        v: appointments.filter((a) => a.day === iso && a.status !== "cancelled").length,
+      };
+    });
+
+    // Comparaison à la période précédente, pour que les flèches disent vrai.
+    const apptsPrevWeek = appointments.filter((a) => a.day >= ago(13) && a.day < ago(6)).length;
+    const apptsThisWeek = appointments.filter((a) => a.day >= ago(6) && a.day <= today).length;
+    const appointmentsDelta = apptsPrevWeek
+      ? Math.round(((apptsThisWeek - apptsPrevWeek) / apptsPrevWeek) * 100)
+      : 0;
+
+    const prevWindow = appointments.filter((a) => a.day >= ago(180) && a.day < window90);
+    const prevNoShow = prevWindow.length
+      ? (prevWindow.filter((a) => a.status === "no_show").length / prevWindow.length) * 100
+      : 0;
+    const noShowDelta = +(noShow - prevNoShow).toFixed(1);
 
     // Live acts distribution from all treatment-plan lines.
     const buckets = new Map<string, { label: string; color: string; value: number }>();
@@ -687,20 +790,22 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     return {
       collected,
       outstanding,
-      activePatients: patients.length,
+      activePatients,
       acceptance,
       appointmentsCount,
       noShow,
       dueToday,
       revenue: collected,
-      revenueDelta: 10.1,
-      appointmentsDelta: 6,
-      noShowDelta: -1.8,
+      revenueDelta,
+      appointmentsDelta,
+      noShowDelta,
       acceptanceDelta: 5,
       revenueTrend,
+      weeklyLoad,
       actsMix,
+      collectedAllTime: sumIn("0000-00-00", today),
     };
-  }, [data]);
+  }, [data, lang]);
 
   const value = useMemo<DataStore>(
     () => ({
@@ -725,6 +830,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       recordPayment,
       addDocument,
       addFilesToDocument,
+      updateTreatmentPlan,
+      deleteTreatmentPlan,
       markRecallSent,
       resetDemo,
     }),
@@ -750,6 +857,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       recordPayment,
       addDocument,
       addFilesToDocument,
+      updateTreatmentPlan,
+      deleteTreatmentPlan,
       markRecallSent,
       resetDemo,
     ]

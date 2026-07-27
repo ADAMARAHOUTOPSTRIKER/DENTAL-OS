@@ -19,12 +19,17 @@ export function Counter({
 }) {
   const [display, setDisplay] = useState(value);
   const ref = useRef<HTMLSpanElement>(null);
-  const started = useRef(false);
+  // `seen` retient l'entrée dans le viewport (une seule fois) ; `from` retient
+  // le dernier nombre affiché pour repartir de là quand la donnée change —
+  // sinon le compteur se figeait sur sa toute première valeur.
+  const seen = useRef(false);
+  const from = useRef(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       setDisplay(value);
+      from.current = value;
       return;
     }
 
@@ -35,20 +40,25 @@ export function Counter({
     const tick = (ts: number) => {
       if (!startTs) startTs = ts;
       const p = Math.min(1, (ts - startTs) / duration);
-      setDisplay(value * easeOutCubic(p));
+      const next = origin + (value - origin) * easeOutCubic(p);
+      setDisplay(next);
+      from.current = next;
       if (p < 1) raf = requestAnimationFrame(tick);
     };
 
+    const origin = seen.current ? from.current : 0;
+
     const start = () => {
-      if (started.current) return;
-      started.current = true;
-      setDisplay(0);
+      setDisplay(origin);
       raf = requestAnimationFrame(tick);
       // Filet de sécurité : dans un onglet en arrière-plan le navigateur gèle
       // requestAnimationFrame, et le compteur resterait bloqué sur 0 — soit
       // exactement l'écran qu'un prospect ne doit jamais voir. Passé le temps
       // de l'animation, on affiche la vraie valeur quoi qu'il arrive.
-      safety = window.setTimeout(() => setDisplay(value), duration + 400);
+      safety = window.setTimeout(() => {
+        setDisplay(value);
+        from.current = value;
+      }, duration + 400);
     };
 
     const el = ref.current;
@@ -61,6 +71,7 @@ export function Counter({
       const io = new IntersectionObserver(
         (entries) => {
           if (entries[0].isIntersecting) {
+            seen.current = true;
             start();
             io.disconnect();
           }
@@ -73,6 +84,7 @@ export function Counter({
         cleanup();
       };
     }
+    seen.current = true;
     start();
     return cleanup;
   }, [value, duration]);

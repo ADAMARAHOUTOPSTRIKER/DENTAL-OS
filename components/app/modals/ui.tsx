@@ -21,6 +21,34 @@ export function Modal({
   footer?: React.ReactNode;
   size?: "sm" | "md" | "lg";
 }) {
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => {
+    // Échap ferme la modale. On ignore la touche si un enfant l'a déjà
+    // consommée (le Combo appelle preventDefault pour fermer sa propre liste).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !e.defaultPrevented) closeRef.current();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  useEffect(() => {
+    // Verrou du défilement du fond ; on compense la barre de défilement pour
+    // éviter que la page « saute » à l'ouverture (inline-end : côté barre en RTL aussi).
+    const body = document.body;
+    const prevOverflow = body.style.overflow;
+    const prevPad = body.style.paddingInlineEnd;
+    const gap = window.innerWidth - document.documentElement.clientWidth;
+    body.style.overflow = "hidden";
+    if (gap > 0) body.style.paddingInlineEnd = `${gap}px`;
+    return () => {
+      body.style.overflow = prevOverflow;
+      body.style.paddingInlineEnd = prevPad;
+    };
+  }, []);
+
   return (
     <div className="fixed inset-0 z-[60] grid place-items-center p-4">
       <div
@@ -28,6 +56,9 @@ export function Modal({
         onClick={onClose}
       />
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         className={cn(
           "pop-in relative flex max-h-[90vh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-float",
           size === "lg" ? "max-w-2xl" : size === "sm" ? "max-w-sm" : "max-w-lg"

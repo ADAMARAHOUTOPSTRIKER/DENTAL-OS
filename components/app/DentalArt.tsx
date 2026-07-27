@@ -2,6 +2,65 @@
 
 // Hand-drawn SVG stand-ins for dental imagery (no external assets required).
 
+/* ------------------------------------------------------------------ */
+/* Radiographies                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Les vraies imageries du cabinet, servies depuis public/scans/.
+ *
+ * Le dessin SVG plus bas trahissait la démonstration au premier coup d'œil :
+ * un dentiste reconnaît une radio en une demi-seconde, et une illustration
+ * décorative lui dit « ce logiciel n'a jamais vu un vrai patient ». On affiche
+ * donc de véritables clichés — panoramiques, coupe CBCT, reconstruction 3D.
+ */
+const PANORAMIQUES = ["/scans/pano-1.png", "/scans/pano-2.png", "/scans/pano-3.png"];
+const VOLUMIQUES = ["/scans/cbct-coupe.png", "/scans/cbct-3d.png"];
+const SCANS = [...PANORAMIQUES, ...VOLUMIQUES];
+
+/**
+ * Choisit un cliché à partir d'une graine stable (nom de fichier ou titre du
+ * document).
+ *
+ * Deux règles : le type d'examen est respecté — une « panoramique » ne doit
+ * pas afficher une coupe scanner, un dentiste le verrait immédiatement — et le
+ * tirage est déterministe, pour qu'un même document montre toujours la même
+ * image au lieu d'en changer à chaque rendu.
+ */
+export function scanFor(seed: string) {
+  const s = seed.toLowerCase();
+  const pool = /pano/.test(s)
+    ? PANORAMIQUES
+    : /cbct|3d|volum|coupe|retro|rétro/.test(s)
+      ? VOLUMIQUES
+      : SCANS;
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  return pool[h % pool.length];
+}
+
+export function ScanImage({
+  seed,
+  alt,
+  className = "",
+}: {
+  seed: string;
+  alt: string;
+  className?: string;
+}) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={scanFor(seed)}
+      alt={alt}
+      loading="lazy"
+      draggable={false}
+      className={`h-full w-full bg-ink-950 object-cover ${className}`}
+    />
+  );
+}
+
+/** Conservé pour les fonds décoratifs ; n'est plus utilisé pour les radios. */
 export function XrayArt({ className = "" }: { className?: string }) {
   const teeth = Array.from({ length: 8 });
   return (

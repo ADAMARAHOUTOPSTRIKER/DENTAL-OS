@@ -19,20 +19,25 @@ const arabic = Noto_Kufi_Arabic({
 });
 
 export const metadata: Metadata = {
-  title:
-    "Dental Clinic OS — The operating system for Moroccan dental practices",
+  title: "Dental Clinic OS — Le système d’exploitation de votre cabinet dentaire",
   description:
-    "From the first appointment to lifelong patient loyalty. Booking, treatment plans, imaging, billing and patient relationships in one beautifully simple platform built for Morocco.",
+    "Du premier rendez-vous à la fidélité à vie. Agenda, plans de traitement, imagerie, facturation et relation patient — réunis dans une plateforme pensée pour les cabinets marocains, en français et en arabe.",
 };
+
+// Pose lang/dir avant l'hydratation React : un visiteur qui avait choisi
+// l'arabe ne voit pas la page apparaître en français puis basculer.
+const LANG_BOOT = `try{if(localStorage.getItem("dcos-lang")==="ar"){var e=document.documentElement;e.lang="ar";e.dir="rtl"}}catch(t){}`;
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr">
+    // suppressHydrationWarning : lang/dir peuvent déjà avoir été posés par LANG_BOOT.
+    <html lang="fr" suppressHydrationWarning>
       <body
         className={`${display.variable} ${sans.variable} ${arabic.variable} font-sans antialiased`}
       >
+        <script dangerouslySetInnerHTML={{ __html: LANG_BOOT }} />
         {children}
       </body>
     </html>

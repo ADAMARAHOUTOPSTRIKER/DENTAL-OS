@@ -1,5 +1,6 @@
 "use client";
 
+import { TrendingDown, TrendingUp } from "lucide-react";
 import { cn, initials, avatarColor } from "@/lib/utils";
 import { Counter } from "@/components/ui/Counter";
 
@@ -48,19 +49,36 @@ export function Avatar({
 }
 
 // ---------- Status pill ----------
+// Toutes les teintes viennent du thème (tailwind.config.ts) : teal, amber,
+// neutral et danger — aucune palette Tailwind par défaut.
 const PILL: Record<string, string> = {
   confirmed: "bg-teal-50 text-teal-700 ring-teal-200",
   pending: "bg-amber-50 text-amber-700 ring-amber-200",
-  arrived: "bg-sky-50 text-sky-700 ring-sky-200",
-  completed: "bg-slate-100 text-slate-600 ring-slate-200",
-  cancelled: "bg-rose-50 text-rose-600 ring-rose-200",
+  arrived: "bg-teal-100 text-teal-800 ring-teal-300",
+  completed: "bg-neutral-100 text-neutral-600 ring-neutral-200",
+  cancelled: "bg-danger-50 text-danger-600 ring-danger-200",
+  no_show: "bg-danger-100 text-danger-700 ring-danger-300",
   paid: "bg-teal-50 text-teal-700 ring-teal-200",
   partial: "bg-amber-50 text-amber-700 ring-amber-200",
-  unpaid: "bg-rose-50 text-rose-600 ring-rose-200",
+  unpaid: "bg-danger-50 text-danger-600 ring-danger-200",
   accepted: "bg-teal-50 text-teal-700 ring-teal-200",
   proposed: "bg-amber-50 text-amber-700 ring-amber-200",
   sent: "bg-teal-50 text-teal-700 ring-teal-200",
 };
+
+// Repli neutre pour un statut hors table : visuellement distinct de
+// « terminé », et signalé en dev pour que l'écart ne passe pas inaperçu.
+const PILL_FALLBACK = "bg-neutral-50 text-neutral-500 ring-neutral-300";
+const warnedTones = new Set<string>();
+function pillClass(tone: string) {
+  const cls = PILL[tone];
+  if (cls) return cls;
+  if (process.env.NODE_ENV !== "production" && !warnedTones.has(tone)) {
+    warnedTones.add(tone);
+    console.warn(`[Pill] statut inconnu « ${tone} » — repli neutre appliqué.`);
+  }
+  return PILL_FALLBACK;
+}
 
 export function Pill({
   children,
@@ -75,7 +93,7 @@ export function Pill({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset",
-        PILL[tone] ?? PILL.completed
+        pillClass(tone)
       )}
     >
       {dot && <span className="h-1.5 w-1.5 rounded-full bg-current opacity-70" />}
@@ -98,7 +116,8 @@ export function Card({
     <div
       className={cn(
         "rounded-2xl border border-black/5 bg-white shadow-card",
-        hover && "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-float",
+        // Un seul geste de survol dans toute l'app : l'utilitaire .lift.
+        hover && "lift hover:shadow-float",
         className
       )}
     >
@@ -167,10 +186,11 @@ export function Kpi({
           <span
             className={cn(
               "inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5",
-              up ? "bg-teal-50 text-teal-700" : "bg-rose-50 text-rose-600"
+              up ? "bg-teal-50 text-teal-700" : "bg-danger-50 text-danger-600"
             )}
           >
-            {up ? "▲" : "▼"} {Math.abs(delta)}%
+            {up ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {Math.abs(delta)}%
           </span>
         </div>
       )}

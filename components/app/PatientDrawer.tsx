@@ -13,12 +13,14 @@ import {
   Wallet,
   Activity,
   Images,
-  Download,
   Trash2,
   ScanLine,
   ImageIcon,
   KeyRound,
+  Pencil,
+  Maximize2,
 } from "lucide-react";
+import { ScanImage, SmileArt } from "@/components/app/DentalArt";
 import { useApp } from "@/lib/i18n";
 import { Avatar, Pill, Button } from "@/components/ui/primitives";
 import { cn, mad, waLink, suggestLogin, genPassword, isoToLabel } from "@/lib/utils";
@@ -107,10 +109,21 @@ export default function PatientDrawer({
                 </div>
               </div>
               <div className="flex items-center gap-1.5">
+                {/* Corriger un numéro ou ajouter une alerte médicale était
+                    impossible : on ne pouvait que créer ou supprimer. */}
+                <button
+                  onClick={() => ui.openEditPatient(patient)}
+                  className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white/80 hover:bg-white/20 hover:text-white"
+                  title={t("patient.edit")}
+                  aria-label={t("patient.edit")}
+                >
+                  <Pencil className="h-4 w-4" />
+                </button>
                 <button
                   onClick={() => ui.openDelete(patient)}
                   className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white/80 hover:bg-rose-500/80 hover:text-white"
                   title={t("act.delete")}
+                  aria-label={t("act.delete")}
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -270,7 +283,7 @@ export default function PatientDrawer({
                 </Button>
               </div>
             ) : (
-              <EmptyCta label={t("doc.empty")} onClick={() => ui.openNewPlan(patient.id)} cta={t("new.plan")} />
+              <EmptyCta label={t("plan.empty")} onClick={() => ui.openNewPlan(patient.id)} cta={t("new.plan")} />
             ))}
 
           {tab === "documents" &&
@@ -299,9 +312,15 @@ export default function PatientDrawer({
                     <span className="font-semibold text-teal-600">+{mad(p.amount)}</span>
                   </li>
                 ))}
+                <li className="flex items-center justify-between rounded-xl bg-sand-100 px-3 py-2.5 text-sm">
+                  <span className="font-medium text-ink-800/60">{t("pay.collected")}</span>
+                  <span className="font-display font-bold text-teal-600">
+                    {mad(pays.reduce((s, p) => s + p.amount, 0))} {t("common.mad")}
+                  </span>
+                </li>
               </ul>
             ) : (
-              <Empty label="—" />
+              <EmptyCta label={t("pay.empty")} onClick={() => ui.openPayment(patient.id)} cta={t("pay.record")} />
             ))}
 
           {tab === "family" &&
@@ -319,7 +338,7 @@ export default function PatientDrawer({
                 ))}
               </ul>
             ) : (
-              <Empty label={t("detail.family")} />
+              <Empty label={t("family.empty")} />
             ))}
         </div>
       </aside>
@@ -341,20 +360,45 @@ function DocCard({ doc }: { doc: ClinicDocument }) {
           <div className="truncate text-xs text-ink-800/50">{catLabel(doc.category, t)} · {isoToLabel(doc.createdAt, lang)}</div>
         </div>
       </div>
-      <ul className="mt-2 space-y-1">
+      {/* Vignettes : la liste n'affichait que des noms de fichiers, si bien que
+          tout le jeu de démonstration ressemblait à des lignes mortes. */}
+      <ul className="mt-2.5 grid grid-cols-2 gap-2">
         {doc.files.map((f, i) => (
-          <li key={i} className="flex items-center gap-2 rounded-lg bg-sand-50 px-2.5 py-1.5 text-xs">
-            <FileText className="h-3.5 w-3.5 text-ink-800/40" />
-            <span className="flex-1 truncate text-ink-800/70">{f.name}</span>
-            {f.dataUrl && (
-              <button onClick={() => openFile(f)} className="grid h-6 w-6 place-items-center rounded text-ink-800/50 hover:text-teal-600" title={t("common.view")}>
-                <Download className="h-3.5 w-3.5" />
-              </button>
-            )}
+          <li key={i}>
+            <button
+              onClick={() => openFile(f)}
+              className="group relative block aspect-[4/3] w-full overflow-hidden rounded-lg ring-1 ring-black/5"
+              title={f.dataUrl ? t("common.view") : f.name}
+            >
+              <DocThumb file={f} category={doc.category} />
+              <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-ink-950/80 to-transparent px-2 py-1 text-start text-[10px] text-white/90">
+                {f.name}
+              </span>
+              {f.dataUrl && (
+                <span className="absolute end-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-md bg-ink-950/60 text-white opacity-0 backdrop-blur transition-opacity group-hover:opacity-100">
+                  <Maximize2 className="h-3 w-3" />
+                </span>
+              )}
+            </button>
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+/** Aperçu d'un fichier : le cliché réel s'il existe, sinon la bonne imagerie type. */
+function DocThumb({ file, category }: { file: DocFile; category: string }) {
+  if (file.dataUrl && file.kind === "image")
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={file.dataUrl} alt={file.name} className="h-full w-full object-cover" />;
+  if (file.kind === "image" && category === "xray")
+    return <ScanImage seed={file.name} alt={file.name} />;
+  if (file.kind === "image") return <SmileArt className="h-full w-full" />;
+  return (
+    <span className="grid h-full w-full place-items-center bg-gradient-to-br from-rose-50 to-rose-100 text-rose-400">
+      <FileText className="h-7 w-7" />
+    </span>
   );
 }
 

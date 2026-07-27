@@ -23,8 +23,8 @@ import {
   AMO_REGIMES, type Regime, indicativeRate, instructionsFor, precautionFromAlerts, isSurgical,
 } from "@/lib/care";
 import {
-  TODAY_ISO, CLINIC_WHATSAPP,
-  catLabel, type DocFile, type Payment, type TreatmentPlan,
+  TODAY_ISO, CLINIC_WHATSAPP, catLabel,
+  type ClinicDocument, type DocFile, type Patient, type Payment, type TreatmentPlan,
 } from "@/lib/data";
 
 function openFile(f: DocFile) {
@@ -45,6 +45,22 @@ const CAT_ICON: Record<string, typeof FileText> = { xray: ScanLine, photo: Image
 const catIcon = (c: string) => CAT_ICON[c] ?? FileText;
 const fill = (tmpl: string, map: Record<string, string>) => tmpl.replace(/\{(\w+)\}/g, (_, k) => map[k] ?? "");
 
+// ---------- Nature des documents ----------
+// Le champ `kind` fait foi : il est porté par la donnée, pas par le libellé
+// (un titre traduit change avec la langue et cassait la détection en arabe).
+// Les documents créés en cours de session ne portent pas encore `kind`
+// (addDocument ne le stocke pas) : on retombe alors sur des indices stables
+// quelle que soit la langue — nom de fichier, ou libellé dans les deux langues.
+const SIGNED_CONSENT_FILE = "consentement-signe.pdf";
+const isSignedConsent = (d: ClinicDocument) =>
+  d.kind === "consent-signed" || d.files.some((f) => f.name === SIGNED_CONSENT_FILE);
+const isConsent = (d: ClinicDocument) =>
+  d.kind === "consent" ||
+  (d.kind == null && !isSignedConsent(d) &&
+    (d.files.some((f) => f.name.startsWith("consentement-")) || /consentement|موافقة/i.test(d.title)));
+const isPrescription = (d: ClinicDocument) =>
+  d.kind === "prescription" || (d.kind == null && /ordonnance|وصفة/i.test(d.title));
+
 type Tab = "home" | "care" | "file";
 const DEMO_PATIENT = "p1"; // fallback (direct visit without logging in)
 
@@ -62,9 +78,22 @@ export default function PortalPage() {
   // The logged-in patient is the account "guardian" (they + any family members).
   const guardianId = patientId ?? DEMO_PATIENT;
   const guardian = patientById(guardianId) ?? patientById(DEMO_PATIENT)!;
-  const familyIds = useMemo(() => [guardian.id, ...guardian.family], [guardian.id, guardian.family]);
+  // On résout les membres tout de suite et on écarte les identifiants morts :
+  // si le cabinet supprime un membre, son id reste dans `family` et ne doit
+  // jamais faire tomber la page.
+  const familyMembers = useMemo(
+    () =>
+      [guardian.id, ...guardian.family]
+        .map((id) => patientById(id))
+        .filter((p): p is Patient => Boolean(p)),
+    [guardian.id, guardian.family, patientById]
+  );
   const [activeId, setActiveId] = useState(guardian.id);
-  useEffect(() => { setActiveId(guardian.id); }, [guardian.id]);
+  // Retombe sur le titulaire si le membre actif n'existe plus (changement de
+  // compte, ou membre supprimé côté cabinet pendant la session).
+  useEffect(() => {
+    if (!familyMembers.some((m) => m.id === activeId)) setActiveId(guardian.id);
+  }, [familyMembers, activeId, guardian.id]);
   const [regime, setRegime] = useState<Regime>("CNSS (AMO)");
   const [stayFrom, setStayFrom] = useState(TODAY_ISO);
   const [stayTo, setStayTo] = useState(addDaysIso(TODAY_ISO, 14));
@@ -103,18 +132,14 @@ export default function PortalPage() {
     return g;
   }, [myDocs]);
 
-  // Consents awaiting signature (excludes already-signed ones).
-  const signedLabel = t("consent.signed");
-  const signedSet = useMemo(
-    () => new Set(myDocs.filter((d) => d.title.startsWith(signedLabel)).map((d) => d.title.replace(`${signedLabel} — `, ""))),
-    [myDocs, signedLabel]
-  );
-  const toSign = myDocs.filter(
-    (d) => d.category === "doc" && /consentement/i.test(d.title) && !d.title.startsWith(signedLabel) && !signedSet.has(d.title)
-  );
+  // Consentements restant à signer. On s'appuie sur `kind` (et sur le nom de
+  // fichier pour les documents créés en séance) : un titre traduit changeait
+  // avec la langue, et la signature électronique disparaissait en arabe.
+  const hasSigned = myDocs.some(isSignedConsent);
+  const toSign = hasSigned ? [] : myDocs.filter(isConsent);
 
   const isToday = nextAppt?.day === TODAY_ISO;
-  const consolidatedBalance = familyIds.reduce((s, id) => s + (patientById(id)?.balance ?? 0), 0);
+  const consolidatedBalance = familyMembers.reduce((s, m) => s + m.balance, 0);
 
   // Backlog features
   const precaution = precautionFromAlerts(me.alerts);
@@ -128,8 +153,8 @@ export default function PortalPage() {
   const amoReste = total - amoRemb;
 
   // Per-member household summary
-  const household = familyIds.map((id) => {
-    const m = patientById(id)!;
+  const household = familyMembers.map((m) => {
+    const id = m.id;
     const na = appointments.filter((a) => a.patientId === id && a.day >= TODAY_ISO && a.status !== "cancelled")
       .sort((a, b) => a.day.localeCompare(b.day) || a.time.localeCompare(b.time))[0];
     const rc = recalls.filter((r) => r.patientId === id && m.recallOptIn !== false).length;
@@ -142,7 +167,7 @@ export default function PortalPage() {
   const acceptPlan = async (plan: TreatmentPlan) => {
     await setPlanStatus(plan.id, "accepted");
     const { dataUrl } = generateDevisPDF(plan, me);
-    await addDocument({ patientId: me.id, patient: me.name, title: t("consent.title"), category: "doc", files: [{ name: `consentement-${plan.id}.pdf`, kind: "pdf", dataUrl }] });
+    await addDocument({ patientId: me.id, patient: me.name, title: t("consent.title"), category: "doc", files: [{ name: SIGNED_CONSENT_FILE, kind: "pdf", dataUrl }] });
     ui.toast(t("plan.accepted.done"));
   };
   const waClinic = (tmplKey: string, extra: Record<string, string> = {}) => {
@@ -210,13 +235,13 @@ export default function PortalPage() {
       />
 
       {/* family member switcher */}
-      {familyIds.length > 1 && (
+      {familyMembers.length > 1 && (
         <div className="rise mb-4 flex flex-wrap items-center gap-2">
           <span className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-800/40">
             <Users className="h-3.5 w-3.5" /> {t("portal.family")}
           </span>
-          {familyIds.map((id) => {
-            const m = patientById(id)!;
+          {familyMembers.map((m) => {
+            const id = m.id;
             const active = id === activeId;
             return (
               <button key={id} onClick={() => setActiveId(id)}
@@ -340,7 +365,7 @@ export default function PortalPage() {
 
           <div className="space-y-5">
             {/* household */}
-            {familyIds.length > 1 && (
+            {familyMembers.length > 1 && (
               <SectionCard title={t("portal.household")} delay={0.07}>
                 <ul className="space-y-2">
                   {household.map(({ m, na, rc }) => (
@@ -561,7 +586,7 @@ export default function PortalPage() {
                         <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-800/40"><Icon className="h-3.5 w-3.5" /> {catLabel(c, t)}</div>
                         <ul className="space-y-2">
                           {docsByCat[c].flatMap((d) => d.files.map((f, i) => {
-                            const isOrdo = /ordonnance/i.test(d.title);
+                            const isOrdo = isPrescription(d);
                             return (
                               <li key={`${d.id}-${i}`} className="flex items-center gap-3 rounded-xl border border-black/5 bg-white p-3">
                                 <span className="grid h-9 w-9 place-items-center rounded-lg bg-teal-50 text-teal-600"><Icon className="h-4 w-4" /></span>

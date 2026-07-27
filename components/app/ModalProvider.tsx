@@ -11,6 +11,7 @@ import {
 } from "react";
 import {
   UserPlus,
+  Pencil,
   CalendarPlus,
   FileText,
   Images,
@@ -56,6 +57,8 @@ type Tone = "success" | "info";
 interface UICtx {
   toast: (text: string, tone?: Tone) => void;
   openNewPatient: () => void;
+  /** Corriger une fiche existante : un dossier patient se met à jour, il ne se recrée pas. */
+  openEditPatient: (patient: Patient) => void;
   openPreRegister: () => void;
   openReschedule: (appointment: Appointment) => void;
   openPatientBooking: (patientId: string, prefill?: { act?: string; day?: string }) => void;
@@ -80,7 +83,7 @@ export function useUI() {
 }
 
 type Modal =
-  | { kind: "patient"; intake?: boolean }
+  | { kind: "patient"; intake?: boolean; edit?: Patient }
   | { kind: "reschedule"; appointment: Appointment }
   | { kind: "patientBooking"; patientId: string; act?: string; day?: string }
   | { kind: "signature"; patientId: string; title: string; lines?: { act: string; price: number }[] }
@@ -147,6 +150,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
     () => ({
       toast,
       openNewPatient: () => setModal({ kind: "patient" }),
+      openEditPatient: (patient) => setModal({ kind: "patient", edit: patient }),
       openPreRegister: () => setModal({ kind: "patient", intake: true }),
       openReschedule: (appointment) => setModal({ kind: "reschedule", appointment }),
       openPatientBooking: (patientId, prefill) =>
@@ -178,7 +182,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
       {children}
 
       {modal?.kind === "patient" && (
-        <PatientModal onClose={close} toast={toast} intake={modal.intake} />
+        <PatientModal onClose={close} toast={toast} intake={modal.intake} edit={modal.edit} />
       )}
       {modal?.kind === "reschedule" && (
         <RescheduleModal onClose={close} toast={toast} appointment={modal.appointment} />
@@ -372,16 +376,23 @@ function CredRow({ label, value, mono }: { label: string; value: string; mono?: 
   );
 }
 
-function PatientModal({ onClose, toast, intake = false }: Common & { intake?: boolean }) {
+function PatientModal({
+  onClose,
+  toast,
+  intake = false,
+  edit,
+}: Common & { intake?: boolean; edit?: Patient }) {
   const { t } = useApp();
-  const { addPatient } = useData();
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [age, setAge] = useState("");
-  const [gender, setGender] = useState<"M" | "F">("F");
-  const [city, setCity] = useState("Casablanca");
-  const [tags, setTags] = useState("");
-  const [alerts, setAlerts] = useState("");
+  const { addPatient, updatePatient } = useData();
+  // En édition, les champs partent de la fiche existante : on corrige un
+  // dossier, on ne le ressaisit pas.
+  const [name, setName] = useState(edit?.name ?? "");
+  const [phone, setPhone] = useState(edit?.phone ?? "");
+  const [age, setAge] = useState(edit?.age ? String(edit.age) : "");
+  const [gender, setGender] = useState<"M" | "F">(edit?.gender ?? "F");
+  const [city, setCity] = useState(edit?.city ?? "Casablanca");
+  const [tags, setTags] = useState(edit?.tags.join(", ") ?? "");
+  const [alerts, setAlerts] = useState(edit?.alerts.join(", ") ?? "");
   const [busy, setBusy] = useState(false);
 
   // Portal credentials
@@ -405,6 +416,22 @@ function PatientModal({ onClose, toast, intake = false }: Common & { intake?: bo
   const submit = async () => {
     if (!name.trim() || busy) return;
     setBusy(true);
+
+    if (edit) {
+      await updatePatient(edit.id, {
+        name: name.trim(),
+        phone,
+        age: age ? Number(age) : 0,
+        gender,
+        city,
+        tags: parseList(tags),
+        alerts: parseList(alerts),
+      });
+      toast(t("patient.updated"));
+      onClose();
+      return;
+    }
+
     const useCreds = withAccess && !!login.trim() && !!password.trim();
     const p = await addPatient({
       name, phone,
@@ -471,15 +498,15 @@ function PatientModal({ onClose, toast, intake = false }: Common & { intake?: bo
 
   return (
     <Modal
-      title={intake ? t("prereg.title") : t("new.patient")}
-      subtitle={intake ? t("prereg.sub") : t("role.dentist.desc")}
-      icon={<UserPlus className="h-5 w-5" />}
+      title={edit ? t("patient.edit") : intake ? t("prereg.title") : t("new.patient")}
+      subtitle={edit ? edit.name : intake ? t("prereg.sub") : t("role.dentist.desc")}
+      icon={edit ? <Pencil className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
       onClose={onClose}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>{t("common.cancel")}</Button>
           <Button variant="primary" onClick={submit} disabled={!name.trim() || busy}>
-            <Check className="h-4 w-4" /> {intake ? t("prereg.submit") : t("common.create")}
+            <Check className="h-4 w-4" /> {edit ? t("common.save") : intake ? t("prereg.submit") : t("common.create")}
           </Button>
         </>
       }
@@ -514,8 +541,9 @@ function PatientModal({ onClose, toast, intake = false }: Common & { intake?: bo
           <Input value={alerts} onChange={(e) => setAlerts(e.target.value)} placeholder="Allergie pénicilline" />
         </Field>
 
-        {/* Portal credentials */}
-        <div className="rounded-xl border border-black/5 bg-sand-50/60 p-3">
+        {/* Accès au portail — uniquement à la création : sur une fiche
+            existante, les identifiants se gèrent depuis le dossier patient. */}
+        <div className={cn("rounded-xl border border-black/5 bg-sand-50/60 p-3", edit && "hidden")}>
           <div className="flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 text-sm">
               <KeyRound className="h-4 w-4 text-teal-600" />

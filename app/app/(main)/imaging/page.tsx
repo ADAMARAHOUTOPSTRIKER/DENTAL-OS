@@ -8,7 +8,7 @@ import {
 import { useApp } from "@/lib/i18n";
 import { Button, Avatar } from "@/components/ui/primitives";
 import { PageHeader } from "@/components/app/blocks";
-import { XrayArt, SmileArt } from "@/components/app/DentalArt";
+import { ScanImage, SmileArt } from "@/components/app/DentalArt";
 import { useData } from "@/components/app/DataProvider";
 import { useUI } from "@/components/app/ModalProvider";
 import { cn, isoToLabel } from "@/lib/utils";
@@ -25,8 +25,10 @@ function Visual({
   if (file.dataUrl && file.kind === "image")
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={file.dataUrl} alt={file.name} className={cn("h-full w-full object-cover", className)} />;
+  // Radiographies : de vrais clichés. Un dentiste reconnaît une radio en une
+  // demi-seconde, et un dessin lui dit « ce logiciel n'a jamais vu un patient ».
   if (file.kind === "image" && category === "xray")
-    return <XrayArt className={cn("h-full w-full object-cover", className)} />;
+    return <ScanImage seed={file.name} alt={file.name} className={className} />;
   if (file.kind === "image")
     return <SmileArt bright={bright} className={cn("h-full w-full", className)} />;
   return (
@@ -87,6 +89,28 @@ function BeforeAfter({ before, after }: { before: DocFile; after: DocFile }) {
   );
 }
 
+/**
+ * Enregistre un fichier sur le poste.
+ *
+ * `window.open` sur une URL `data:` est bloqué par tous les navigateurs
+ * récents — le bouton « Télécharger » ne faisait donc strictement rien. On
+ * repasse par un Blob et un lien `download`, qui reste autorisé.
+ */
+function downloadFile(f: DocFile) {
+  if (!f.dataUrl) return;
+  const [meta, b64] = f.dataUrl.split(",");
+  const mime = meta.match(/:(.*?);/)?.[1] ?? "application/octet-stream";
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = f.name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /* ---------------- Lightbox ---------------- */
 interface LightboxState { files: DocFile[]; index: number; category: DocCategory; title: string; patient: string; }
 
@@ -119,7 +143,7 @@ function Lightbox({ state, onClose, onIndex }: { state: LightboxState; onClose: 
             </div>
           </div>
           <div className="flex items-center gap-1.5">
-            <button onClick={() => cur.dataUrl && window.open(cur.dataUrl, "_blank")} disabled={!cur.dataUrl}
+            <button onClick={() => downloadFile(cur)} disabled={!cur.dataUrl}
               className="grid h-9 w-9 place-items-center rounded-lg bg-white/10 text-white hover:bg-white/20 disabled:opacity-30" title={t("common.download")}>
               <Download className="h-4 w-4" />
             </button>
@@ -192,7 +216,20 @@ export default function ImagingPage() {
     { key: "doc", label: t("imaging.docs"), icon: FileText },
     ...customCats.map((c) => ({ key: c, label: c, icon: FileText })),
   ];
-  const catIndex = cats.findIndex((c) => c.key === cat);
+  // Position du curseur, mesurée sur le bouton actif. `insetInlineStart` se
+  // calcule depuis le bord de début, qui est à droite en arabe.
+  const catRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [ind, setInd] = useState({ start: 0, width: 0 });
+  useEffect(() => {
+    const el = catRefs.current[String(cat)];
+    const box = el?.parentElement;
+    if (!el || !box) return;
+    const rtl = getComputedStyle(box).direction === "rtl";
+    const start = rtl
+      ? box.clientWidth - el.offsetLeft - el.offsetWidth
+      : el.offsetLeft;
+    setInd({ start, width: el.offsetWidth });
+  }, [cat, cats.length, lang]);
 
   const groups = useMemo(() => {
     const filtered = documents.filter((d) => cat === "all" || d.category === cat);
@@ -216,13 +253,24 @@ export default function ImagingPage() {
         action={<Button variant="primary" onClick={() => ui.openNewDocument()}><Upload className="h-4 w-4" /> {t("imaging.upload")}</Button>}
       />
 
-      {/* filter — sliding indicator */}
-      <div className="rise relative mb-5 flex w-full rounded-xl border border-black/5 bg-white p-1 shadow-sm sm:w-[30rem]">
-        <span aria-hidden className="pointer-events-none absolute bottom-1 left-1 top-1 rounded-lg bg-ink-900 shadow-sm"
-          style={{ width: "calc((100% - 0.5rem) / 4)", transform: `translateX(${catIndex * 100}%)`, transition: "transform 0.42s cubic-bezier(0.16,1,0.3,1)" }} />
+      {/* Filtre — le curseur est MESURÉ sur l'onglet actif. Il était calculé sur
+          une largeur fixe d'un quart : il débordait, masquait le libellé actif,
+          et désignait le mauvais onglet en arabe. Le nombre d'onglets est en
+          plus variable depuis que le cabinet crée ses propres catégories. */}
+      <div className="rise relative mb-5 flex w-full overflow-x-auto rounded-xl border border-black/5 bg-white p-1 shadow-sm sm:w-fit">
+        <span
+          aria-hidden
+          className="pointer-events-none absolute bottom-1 top-1 rounded-lg bg-ink-900 shadow-sm"
+          style={{
+            insetInlineStart: ind.start,
+            width: ind.width,
+            transition: "inset-inline-start 0.42s cubic-bezier(0.16,1,0.3,1), width 0.42s cubic-bezier(0.16,1,0.3,1)",
+          }}
+        />
         {cats.map((c) => (
           <button key={c.key} onClick={() => setCat(c.key)}
-            className={cn("relative z-10 flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 py-2 text-sm font-medium transition-colors",
+            ref={(el) => { catRefs.current[String(c.key)] = el; }}
+            className={cn("relative z-10 flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors",
               cat === c.key ? "text-white" : "text-ink-800/60 hover:text-ink-900")}>
             {c.icon && <c.icon className="h-4 w-4 shrink-0" />} {c.label}
           </button>

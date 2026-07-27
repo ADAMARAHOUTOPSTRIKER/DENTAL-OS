@@ -5,14 +5,16 @@
 // données (voir lib/clock.ts). Elles sont normalisées en ISO puis décalées sur
 // le jour réel au bas de ce fichier : la démo ne vieillit donc jamais.
 
-import { rebase, rebaseLoose, TODAY_ISO as LIVE_TODAY } from "./clock";
+import { rebase, rebaseLoose, SEED_ANCHOR_ISO, TODAY_ISO as LIVE_TODAY } from "./clock";
 
 export type ApptStatus =
   | "confirmed"
   | "pending"
   | "arrived"
   | "completed"
-  | "cancelled";
+  | "cancelled"
+  /** Le patient n'est pas venu et n'a pas prevenu — c'est ce que mesure le taux de no-show. */
+  | "no_show";
 export type PayStatus = "paid" | "partial" | "unpaid";
 export type PlanStatus = "accepted" | "proposed";
 
@@ -349,6 +351,19 @@ const seedTreatmentPlans: TreatmentPlan[] = [
     ],
   },
   {
+    // Devis en attente : c'est lui qui rend visible le bouton « Accepter le
+    // devis » sur le compte de demonstration du portail.
+    id: "t4",
+    patientId: "p1",
+    patient: "Yasmine Alaoui",
+    createdAt: "2026-07-21",
+    status: "proposed",
+    lines: [
+      { tooth: "36", act: "Composite (carie occlusale)", price: 650 },
+      { tooth: "—", act: "Gouttière de contention", price: 1900 },
+    ],
+  },
+  {
     id: "t3",
     patientId: "p1",
     patient: "Yasmine Alaoui",
@@ -465,17 +480,26 @@ export interface ClinicDocument {
   category: DocCategory;
   files: DocFile[];
   createdAt: string;
+  /**
+   * Nature du document, portee par la donnee et non par son libelle.
+   *
+   * Le portail deduisait auparavant « ceci est un consentement » en cherchant
+   * le mot dans le titre : en arabe le titre change, et la signature
+   * electronique disparaissait purement et simplement de l'ecran.
+   */
+  kind?: "consent" | "consent-signed" | "prescription" | null;
 }
 
 const seedDocuments: ClinicDocument[] = [
   { id: "d1", patientId: "p10", patient: "Youssef Berrada", title: "Radio panoramique — implant 16", category: "xray", createdAt: "30 Jun 2026", files: [{ name: "panoramique-16.jpg", kind: "image" }] },
-  { id: "d2", patientId: "p10", patient: "Youssef Berrada", title: "Consentement — implant", category: "doc", createdAt: "30 Jun 2026", files: [{ name: "consentement-implant.pdf", kind: "pdf" }] },
+  { id: "d2", patientId: "p10", patient: "Youssef Berrada", title: "Consentement — implant", category: "doc", kind: "consent", createdAt: "30 Jun 2026", files: [{ name: "consentement-implant.pdf", kind: "pdf" }] },
   { id: "d3", patientId: "p2", patient: "Mehdi Benali", title: "Rétro-alvéolaire 16", category: "xray", createdAt: "02 Jul 2026", files: [{ name: "retro-16.jpg", kind: "image" }] },
   { id: "d4", patientId: "p3", patient: "Salma Cherkaoui", title: "Blanchiment — avant / après", category: "photo", createdAt: "20 Jul 2026", files: [{ name: "avant.jpg", kind: "image" }, { name: "apres.jpg", kind: "image" }] },
   { id: "d5", patientId: "p3", patient: "Salma Cherkaoui", title: "Radio panoramique", category: "xray", createdAt: "18 May 2026", files: [{ name: "panoramique.jpg", kind: "image" }] },
   { id: "d6", patientId: "p1", patient: "Yasmine Alaoui", title: "Facette 21 — avant / après", category: "photo", createdAt: "12 Jun 2026", files: [{ name: "facette-avant.jpg", kind: "image" }, { name: "facette-apres.jpg", kind: "image" }] },
   { id: "d7", patientId: "p1", patient: "Yasmine Alaoui", title: "Devis orthodontie", category: "doc", createdAt: "12 Jun 2026", files: [{ name: "devis-orthodontie.pdf", kind: "pdf" }] },
-  { id: "d8", patientId: "p5", patient: "Nawal Fassi", title: "Ordonnance — amoxicilline", category: "doc", createdAt: "09 Jul 2026", files: [{ name: "ordonnance-amoxicilline.pdf", kind: "pdf" }] },
+  { id: "d8", patientId: "p5", patient: "Nawal Fassi", title: "Ordonnance — amoxicilline", category: "doc", kind: "prescription", createdAt: "09 Jul 2026", files: [{ name: "ordonnance-amoxicilline.pdf", kind: "pdf" }] },
+  { id: "d9", patientId: "p1", patient: "Yasmine Alaoui", title: "Consentement — gouttière de contention", category: "doc", kind: "consent", createdAt: "2026-07-21", files: [{ name: "consentement-gouttiere.pdf", kind: "pdf" }] },
 ];
 
 // ===== Live-analytics helpers =====
@@ -493,6 +517,150 @@ export function categorizeAct(act: string) {
 }
 
 /* ================================================================== */
+/* Patientèle de fond                                                  */
+/* ================================================================== */
+/*
+ * Les dix dossiers écrits plus haut sont ceux qu'on ouvre pendant une
+ * démonstration : ils ont une alerte médicale, une famille, une histoire.
+ *
+ * Mais un cabinet installé suit des centaines de patients, et des indicateurs
+ * calculés sur dix dossiers affichent 9 000 MAD de chiffre d'affaires mensuel
+ * et « 10 patients actifs » — des chiffres auxquels aucun dentiste ne croit,
+ * et qui décrédibilisent tout le reste de l'écran.
+ *
+ * On ajoute donc une patientèle de fond, tirée de façon déterministe : la même
+ * suite à chaque chargement, pour que le serveur et le navigateur affichent
+ * exactement les mêmes nombres. Ces dossiers portent les volumes ; les
+ * histoires, elles, restent écrites à la main.
+ */
+
+const MS_DAY = 86_400_000;
+const ANCHOR_MS = Date.parse(SEED_ANCHOR_ISO + "T00:00:00Z");
+/** Date ISO située `days` jours avant l'ancre (négatif = après). */
+const isoBefore = (days: number) => new Date(ANCHOR_MS - days * MS_DAY).toISOString().slice(0, 10);
+
+/** Générateur pseudo-aléatoire à graine fixe (mulberry32). */
+function seededRandom(seed: number) {
+  return function next() {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const FIRST_F = ["Fatima", "Khadija", "Meryem", "Sanaa", "Imane", "Zineb", "Hanane", "Loubna", "Asmae", "Ghita", "Nada", "Sara", "Rim", "Wafa", "Chaimae", "Soukaina", "Amal", "Ikram", "Btissam", "Doha"];
+const FIRST_M = ["Mohamed", "Youssef", "Anas", "Reda", "Hamza", "Ayoub", "Ilyas", "Othmane", "Bilal", "Zakaria", "Ismail", "Amine", "Nabil", "Rachid", "Hicham", "Tarik", "Yassine", "Soufiane", "Marouane", "Khalil"];
+const LAST = ["Alami", "Bennis", "Chraibi", "Daoudi", "El Khattabi", "Fassi", "Guessous", "Haddadi", "Ibrahimi", "Jouahri", "Kabbaj", "Lahlou", "Mansouri", "Naciri", "Ouazzani", "Rhrib", "Sekkat", "Tahiri", "Zouiten", "Bouhlal", "Sbai", "Mrini", "Benjelloun", "Amrani"];
+const CITIES = ["Casablanca", "Casablanca", "Casablanca", "Mohammedia", "Rabat", "Salé", "Marrakech", "Fès", "Tanger", "Agadir"];
+const BG_ACTS: { act: string; min: number; max: number }[] = [
+  { act: "Détartrage", min: 350, max: 500 },
+  { act: "Contrôle annuel", min: 250, max: 400 },
+  { act: "Composite", min: 500, max: 900 },
+  { act: "Traitement de racine", min: 1400, max: 2200 },
+  { act: "Couronne céramique", min: 3200, max: 4200 },
+  { act: "Implant titane", min: 6800, max: 8500 },
+  { act: "Blanchiment", min: 1800, max: 2800 },
+  { act: "Extraction", min: 400, max: 900 },
+  { act: "Orthodontie — mensualité", min: 300, max: 600 },
+  { act: "Prothèse amovible", min: 3500, max: 5200 },
+];
+const METHODS: Payment["method"][] = ["cash", "cash", "card", "card", "cheque", "transfer"];
+
+function buildBackgroundCohort() {
+  const rnd = seededRandom(20260723);
+  const pick = <T,>(list: T[]) => list[Math.floor(rnd() * list.length)];
+  const between = (min: number, max: number) => min + Math.floor(rnd() * (max - min + 1));
+
+  const bgPatients: Patient[] = [];
+  const bgPayments: Payment[] = [];
+  const bgAppointments: Appointment[] = [];
+
+  for (let i = 0; i < 240; i++) {
+    const female = rnd() < 0.54;
+    const name = `${pick(female ? FIRST_F : FIRST_M)} ${pick(LAST)}`;
+    const id = `bg${i + 1}`;
+    const balance = rnd() < 0.68 ? 0 : between(2, 58) * 100;
+    // Un tiers de la patientèle a un rendez-vous à venir dans les six semaines.
+    const upcoming = rnd() < 0.32 ? isoBefore(-between(1, 42)) : null;
+
+    bgPatients.push({
+      id,
+      name,
+      age: between(6, 78),
+      gender: female ? "F" : "M",
+      phone: `+212 6${between(60, 69)} ${between(10, 99)} ${between(10, 99)} ${between(10, 99)}`,
+      city: pick(CITIES),
+      lastVisit: isoBefore(between(2, 340)),
+      nextVisit: upcoming,
+      balance,
+      status: balance === 0 ? "paid" : balance > 2500 ? "unpaid" : "partial",
+      alerts: [],
+      family: [],
+      tags: [],
+    });
+
+    // Deux à quatre encaissements sur les sept derniers mois, un peu plus
+    // denses récemment : c'est ce qui donne à la courbe sa pente.
+    const count = between(2, 4);
+    for (let k = 0; k < count; k++) {
+      const spec = pick(BG_ACTS);
+      const daysAgo = Math.floor(Math.pow(rnd(), 1.25) * 205);
+      bgPayments.push({
+        id: `bgy${i}_${k}`,
+        patientId: id,
+        patient: name,
+        date: isoBefore(daysAgo),
+        amount: between(spec.min, spec.max),
+        method: pick(METHODS),
+        act: spec.act,
+      });
+    }
+
+    // Historique de rendez-vous : c'est lui qui fait vivre le taux de no-show.
+    const past = between(1, 3);
+    for (let k = 0; k < past; k++) {
+      const daysAgo = between(3, 88);
+      const roll = rnd();
+      bgAppointments.push({
+        id: `bga${i}_${k}`,
+        patientId: id,
+        patient: name,
+        day: isoBefore(daysAgo),
+        time: `${String(between(9, 17)).padStart(2, "0")}:${rnd() < 0.5 ? "00" : "30"}`,
+        duration: pick([30, 30, 45, 60]),
+        act: pick(BG_ACTS).act,
+        status: roll < 0.055 ? "no_show" : roll < 0.09 ? "cancelled" : "completed",
+        reminderSent: true,
+        practitioner: pick(PRACTITIONERS),
+      });
+    }
+
+    // Les jours qui viennent doivent être remplis, sinon la vue semaine de
+    // l'agenda est vide dès qu'on quitte aujourd'hui.
+    if (upcoming && upcoming < isoBefore(-8)) {
+      bgAppointments.push({
+        id: `bgn${i}`,
+        patientId: id,
+        patient: name,
+        day: upcoming,
+        time: `${String(between(9, 16)).padStart(2, "0")}:${rnd() < 0.5 ? "00" : "30"}`,
+        duration: pick([30, 30, 45, 60]),
+        act: pick(BG_ACTS).act,
+        status: rnd() < 0.75 ? "confirmed" : "pending",
+        reminderSent: rnd() < 0.7,
+        practitioner: pick(PRACTITIONERS),
+      });
+    }
+  }
+
+  return { bgPatients, bgPayments, bgAppointments };
+}
+
+const COHORT = buildBackgroundCohort();
+
+/* ================================================================== */
 /* Normalisation : tout en ISO, tout décalé sur le jour réel           */
 /* ================================================================== */
 /*
@@ -505,13 +673,13 @@ export function categorizeAct(act: string) {
 
 const keep = (value: string, fallback: string) => rebaseLoose(value) ?? fallback;
 
-export const patients: Patient[] = seedPatients.map((p) => ({
+export const patients: Patient[] = [...seedPatients, ...COHORT.bgPatients].map((p) => ({
   ...p,
   lastVisit: keep(p.lastVisit, p.lastVisit),
   nextVisit: p.nextVisit ? rebaseLoose(p.nextVisit) : null,
 }));
 
-export const todaysAppointments: Appointment[] = seedAppointments.map((a) => ({
+export const todaysAppointments: Appointment[] = [...seedAppointments, ...COHORT.bgAppointments].map((a) => ({
   ...a,
   day: rebase(a.day),
 }));
@@ -521,7 +689,7 @@ export const treatmentPlans: TreatmentPlan[] = seedTreatmentPlans.map((t) => ({
   createdAt: keep(t.createdAt, t.createdAt),
 }));
 
-export const payments: Payment[] = seedPayments.map((p) => ({
+export const payments: Payment[] = [...seedPayments, ...COHORT.bgPayments].map((p) => ({
   ...p,
   date: keep(p.date, p.date),
 }));
